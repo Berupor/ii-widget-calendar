@@ -17,19 +17,40 @@ Item {
 
     property string selected: ""
     property alias addOpen: addLayer.open
-    property int monthShift: 0
+    // First of the month on screen, null follows today
+    property var viewMonth: null
     readonly property var selectedDate: Gcal.fromIso(selected)
     readonly property bool weekMode: selectedDate !== null
-    readonly property var viewingDate: Gcal.viewDate(monthShift, now)
-    onSelectedDateChanged: if (selectedDate) monthShift = Gcal.monthShiftOf(selectedDate, now)
+    readonly property var viewingDate: viewMonth ?? Gcal.monthOf(now)
+    readonly property bool currentMonth: Gcal.sameDay(viewingDate, Gcal.monthOf(now))
+    onSelectedDateChanged: if (selectedDate) viewMonth = Gcal.monthOf(selectedDate)
     onViewingDateChanged: {
         const start = Gcal.gridStart(viewingDate);
         GcalState.want(start, Gcal.addDays(start, 42));
     }
-    Component.onCompleted: viewingDateChanged()
+    Component.onCompleted: {
+        GcalState.viewers++;
+        viewingDateChanged();
+    }
+    Component.onDestruction: GcalState.viewers--
+
+    focus: true
+    Keys.onPressed: event => {
+        if ((event.key === Qt.Key_PageDown || event.key === Qt.Key_PageUp) && event.modifiers === Qt.NoModifier) {
+            root.step(event.key === Qt.Key_PageDown ? 1 : -1);
+            event.accepted = true;
+        }
+    }
 
     function select(date) {
         selected = Gcal.toIso(date);
+    }
+
+    function step(delta) {
+        if (root.weekMode)
+            root.select(Gcal.addDays(root.selectedDate, 7 * delta));
+        else
+            root.viewMonth = Gcal.addMonths(root.viewingDate, delta);
     }
 
     Rectangle {
@@ -42,7 +63,7 @@ Item {
     MouseArea {
         anchors.fill: parent
         enabled: !root.weekMode
-        onWheel: event => root.monthShift += event.angleDelta.y > 0 ? -1 : 1
+        onWheel: event => root.step(event.angleDelta.y > 0 ? -1 : 1)
     }
 
     MonthGrid {
@@ -54,21 +75,16 @@ Item {
         days: root.days
         status: root.status
         errorText: root.errorText
-        monthShift: root.monthShift
+        currentMonth: root.currentMonth
         viewingDate: root.viewingDate
         selectedDate: root.selectedDate
         weekMode: root.weekMode
         onDaySelected: date => root.select(date)
         onHeaderClicked: {
             root.selected = "";
-            root.monthShift = 0;
+            root.viewMonth = null;
         }
-        onStepped: delta => {
-            if (root.weekMode)
-                root.select(Gcal.addDays(root.selectedDate, 7 * delta));
-            else
-                root.monthShift += delta;
-        }
+        onStepped: delta => root.step(delta)
     }
 
     EventList {
@@ -94,6 +110,7 @@ Item {
         id: addLayer
         anchors.fill: parent
         day: root.selectedDate ?? root.now
+        now: root.now
         fabShown: root.weekMode && root.status !== "noauth"
     }
 }

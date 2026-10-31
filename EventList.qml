@@ -15,10 +15,9 @@ Item {
     property var days: ({})
     property string status: "ready"
     property string errorText: ""
-    property real listTopPadding: 0
     property real listBottomPadding: 0
-    readonly property var items: Gcal.dayItems(days, day, now)
-    readonly property real contentHeight: listView.contentHeight
+    readonly property var items: Gcal.dayItems(days, day)
+    readonly property int nowIndex: Gcal.nowIndex(items, day, now)
     readonly property var placeholder: root.status === "noauth" ? {
             "icon": "no_accounts",
             "title": Translation.tr("Not signed in"),
@@ -40,111 +39,123 @@ Item {
     StyledListView {
         id: listView
         anchors.fill: parent
-        topMargin: root.listTopPadding
         bottomMargin: root.listBottomPadding
         spacing: 5
         clip: true
         animateAppearance: false
         model: ScriptModel {
+            objectProp: "key"
             values: root.items
         }
-        delegate: Loader {
+        delegate: Column {
+            id: entry
             required property var modelData
+            required property int index
             width: ListView.view.width
-            sourceComponent: modelData.nowLine ? nowLine : eventRow
-            onLoaded: item.modelData = modelData
-        }
-    }
-
-    Component {
-        id: nowLine
-        Item {
-            property var modelData
-            implicitHeight: 8
-            Rectangle {
-                id: nowDot
-                anchors.verticalCenter: parent.verticalCenter
-                width: 8
-                height: 8
-                radius: Appearance.rounding.full
-                color: Appearance.colors.colPrimary
+            spacing: 5
+            NowLine {
+                visible: entry.index === root.nowIndex
+                width: parent.width
             }
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: nowDot.right
-                anchors.right: parent.right
-                height: 2
-                radius: 1
-                color: Appearance.colors.colPrimary
+            EventRow {
+                modelData: entry.modelData
+                past: Gcal.isPast(entry.modelData, root.day, root.now)
+                width: parent.width
+            }
+        }
+        footer: Item {
+            width: ListView.view.width
+            height: root.nowIndex === root.items.length ? 13 : 0
+            NowLine {
+                visible: parent.height > 0
+                anchors.bottom: parent.bottom
+                width: parent.width
             }
         }
     }
 
-    Component {
-        id: eventRow
-        RippleButton {
-            id: row
-            property var modelData
-            readonly property bool past: modelData?.past ?? false
-            readonly property string timeText: modelData?.allDay ? Translation.tr("All day") : `${modelData?.startText ?? ""} - ${modelData?.endText ?? ""}`
-            readonly property string callText: modelData?.meet ? Translation.tr("Google Meet") : modelData?.call ? Translation.tr("Video call") : ""
-            implicitHeight: rowLayout.implicitHeight + 6 * 2
-            padding: 0
-            buttonRadius: Appearance.rounding.small
-            colBackground: past ? ColorUtils.transparentize(Appearance.colors.colLayer2, 1) : Appearance.colors.colLayer2
-            colBackgroundHover: Appearance.colors.colLayer2Hover
-            colRipple: Appearance.colors.colLayer2Active
-            enabled: (modelData?.link ?? "") !== ""
-            onClicked: Qt.openUrlExternally(modelData.link)
+    component NowLine: Item {
+        implicitHeight: 8
+        Rectangle {
+            id: nowDot
+            anchors.verticalCenter: parent.verticalCenter
+            width: 8
+            height: 8
+            radius: Appearance.rounding.full
+            color: Appearance.colors.colPrimary
+        }
+        Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: nowDot.right
+            anchors.right: parent.right
+            height: 2
+            radius: 1
+            color: Appearance.colors.colPrimary
+        }
+    }
 
-            contentItem: Item {
-                RowLayout {
-                    id: rowLayout
-                    anchors.fill: parent
-                    anchors.margins: 6
-                    anchors.leftMargin: 8
-                    anchors.rightMargin: 10
-                    spacing: 10
+    component EventRow: RippleButton {
+        id: row
+        property var modelData
+        property bool past: false
+        readonly property string timeText: modelData?.allDay ? Translation.tr("All day") : `${modelData?.startText ?? ""} - ${modelData?.endText ?? ""}`
+        readonly property string callText: modelData?.meet ? Translation.tr("Google Meet") : modelData?.call ? Translation.tr("Video call") : ""
+        implicitHeight: rowLayout.implicitHeight + 6 * 2
+        padding: 0
+        buttonRadius: Appearance.rounding.small
+        colBackground: past ? ColorUtils.transparentize(Appearance.colors.colLayer2, 1) : Appearance.colors.colLayer2
+        colBackgroundHover: Appearance.colors.colLayer2Hover
+        colRipple: Appearance.colors.colLayer2Active
+        enabled: (modelData?.link ?? "") !== ""
+        onClicked: Qt.openUrlExternally(modelData.link)
 
-                    Rectangle {
-                        Layout.fillHeight: true
-                        implicitWidth: 4
-                        radius: Appearance.rounding.full
-                        color: row.past ? Appearance.colors.colOutlineVariant : Appearance.colors.colPrimary
-                    }
+        contentItem: Item {
+            RowLayout {
+                id: rowLayout
+                anchors.fill: parent
+                anchors.margins: 6
+                anchors.leftMargin: 8
+                anchors.rightMargin: 10
+                spacing: 10
 
-                    ColumnLayout {
+                Rectangle {
+                    Layout.fillHeight: true
+                    implicitWidth: 4
+                    radius: Appearance.rounding.full
+                    color: row.past ? Appearance.colors.colOutlineVariant : Appearance.colors.colPrimary
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 0
+                    StyledText {
                         Layout.fillWidth: true
-                        spacing: 0
+                        text: row.modelData?.title || Translation.tr("(No title)")
+                        elide: Text.ElideRight
+                        color: row.past ? Appearance.colors.colSubtext : Appearance.colors.colOnLayer2
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
                         StyledText {
-                            Layout.fillWidth: true
-                            text: row.modelData?.title || Translation.tr("(No title)")
-                            elide: Text.ElideRight
-                            color: row.past ? Appearance.colors.colSubtext : Appearance.colors.colOnLayer2
+                            text: row.timeText
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: Appearance.colors.colSubtext
                         }
-                        RowLayout {
+                        MaterialSymbol {
+                            visible: row.callText !== ""
+                            Layout.leftMargin: 4
+                            text: "videocam"
+                            iconSize: Appearance.font.pixelSize.small
+                            color: Appearance.colors.colSubtext
+                        }
+                        StyledText {
+                            visible: row.callText !== ""
                             Layout.fillWidth: true
-                            spacing: 4
-                            StyledText {
-                                text: row.timeText
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                color: Appearance.colors.colSubtext
-                            }
-                            MaterialSymbol {
-                                visible: row.callText !== ""
-                                Layout.leftMargin: 4
-                                text: "videocam"
-                                iconSize: Appearance.font.pixelSize.small
-                                color: Appearance.colors.colSubtext
-                            }
-                            StyledText {
-                                visible: row.callText !== ""
-                                Layout.fillWidth: true
-                                text: row.callText
-                                elide: Text.ElideRight
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                color: Appearance.colors.colSubtext
-                            }
+                            text: row.callText
+                            elide: Text.ElideRight
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: Appearance.colors.colSubtext
                         }
                     }
                 }

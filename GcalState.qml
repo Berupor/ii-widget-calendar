@@ -6,7 +6,7 @@ import Quickshell.Io
 import QtQuick
 import "gcal.js" as Gcal
 
-/** gcalcli behind the view: one fetch in flight, polling only while enabled. */
+/** gcalcli behind the view: one fetch in flight, polling only while a view is open. */
 Singleton {
     id: root
 
@@ -15,6 +15,9 @@ Singleton {
     readonly property string hiddenCalendars: WidgetCatalog.option("gcal", "hiddenCalendars") ?? ""
     readonly property string addCalendar: (WidgetCatalog.option("gcal", "addCalendar") ?? "").trim()
 
+    property int viewers: 0
+    readonly property bool active: root.enabled && root.viewers > 0
+
     property var now: new Date()
     property var rows: []
     readonly property var days: Gcal.byDay(root.rows, root.hiddenCalendars)
@@ -22,17 +25,18 @@ Singleton {
     /// "start end" of the window the view shows, iso days
     property string range: ""
     property string fetchedRange: ""
+    property real fetchedAt: 0
     property bool pending: false
     property bool needsAuth: false
     property string errorText: ""
-    readonly property bool fetching: fetchProc.running
-    readonly property string status: root.needsAuth ? "noauth" : root.errorText !== "" ? "error"
-        : (root.fetchedRange !== root.range) ? "loading" : "ready"
+    // A failed run keeps the last rows, a retry reads as loading
+    readonly property string status: (root.fetchedRange !== root.range || fetchProc.running && (root.needsAuth || root.errorText !== "")) ? "loading"
+        : root.needsAuth ? "noauth" : root.errorText !== "" ? "error" : "ready"
 
     property bool adding: false
     property string addError: ""
     property string ownCalendar: ""
-    property var queued: null
+    property string addText: ""
     signal added
 
     function want(start, end) {
@@ -44,14 +48,14 @@ Singleton {
     }
 
     function refresh() {
-        if (!root.enabled || root.range === "")
+        if (!root.active || root.range === "")
             return;
         if (fetchProc.running) {
             root.pending = true;
             return;
         }
         fetchProc.window = root.range;
-        fetchProc.command = ["timeout", "60", "gcalcli", "--nocolor", "agenda", "--tsv", "--details=all", ...root.range.split(" ")];
+        fetchProc.command = ["timeout", "60", "gcalcli", "--nocolor", "agenda", "--tsv", ...[].concat(...Gcal.agendaDetails.map(d => ["--details", d])), ...root.range.split(" ")];
         fetchProc.running = true;
     }
 
@@ -60,7 +64,7 @@ Singleton {
             return;
         root.addError = "";
         root.adding = true;
-        root.queued = Gcal.quickText(text, day);
+        root.addText = Gcal.quickPlan(text, day, new Date()).text;
         const calendar = root.addCalendar || root.ownCalendar;
         if (calendar)
             root.runAdd(calendar);
@@ -69,7 +73,7 @@ Singleton {
     }
 
     function runAdd(calendar) {
-        addProc.command = ["timeout", "60", "gcalcli", "--nocolor", "--calendar", calendar, "quick", root.queued];
+        addProc.command = ["timeout", "60", "gcalcli", "--nocolor", "--calendar", calendar, "quick", "--", root.addText];
         addProc.running = true;
     }
 
@@ -77,22 +81,30 @@ Singleton {
         root.adding = false;
         root.needsAuth = Gcal.needsAuth(output);
         root.addError = Gcal.shortError(output, exitCode);
-        console.warn(`gcal_add_failed exit=${exitCode} message="${root.addError}"`);
+        console.error(`gcal_add_failed exit=${exitCode} message="${root.addError}"`);
     }
 
-    onEnabledChanged: root.refresh()
+    function fail(message, exitCode) {
+        root.errorText = message;
+        console.error(`gcal_fetch_failed exit=${exitCode} message="${message}"`);
+    }
+
+    onActiveChanged: {
+        if (root.active && (root.fetchedRange !== root.range || Date.now() - root.fetchedAt > root.refreshMinutes * 60000))
+            root.refresh();
+    }
 
     Timer {
         interval: root.refreshMinutes * 60000
         repeat: true
-        running: root.enabled
+        running: root.active
         onTriggered: root.refresh()
     }
 
     Timer {
         interval: 30000
         repeat: true
-        running: root.enabled
+        running: root.active
         triggeredOnStart: true
         onTriggered: root.now = new Date()
     }
@@ -108,16 +120,19 @@ Singleton {
         }
         onExited: exitCode => {
             const output = `${fetchOut.text}\n${fetchErr.text}`;
+            const rows = exitCode === 0 ? Gcal.parseAgenda(fetchOut.text) : null;
             root.needsAuth = Gcal.needsAuth(output);
-            if (exitCode === 0 && !root.needsAuth) {
-                root.rows = Gcal.parseAgenda(fetchOut.text);
+            if (root.needsAuth) {
+                root.rows = [];
                 root.errorText = "";
-                root.fetchedRange = fetchProc.window;
+            } else if (rows) {
+                root.rows = rows;
+                root.errorText = "";
+                root.fetchedAt = Date.now();
             } else {
-                root.errorText = Gcal.shortError(output, exitCode);
-                root.fetchedRange = fetchProc.window;
-                console.warn(`gcal_fetch_failed exit=${exitCode} message="${root.errorText}"`);
+                root.fail(exitCode === 0 ? "Unexpected gcalcli output" : Gcal.shortError(output, exitCode), exitCode);
             }
+            root.fetchedRange = fetchProc.window;
             if (root.pending || fetchProc.window !== root.range) {
                 root.pending = false;
                 root.refresh();

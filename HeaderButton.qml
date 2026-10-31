@@ -2,7 +2,7 @@ import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
 
-/** The host's CalendarHeaderButton: its module does not resolve from a widget dir. */
+/** The host's CalendarHeaderButton: the probe harness can't import its module. */
 RippleButton {
     id: button
     property string buttonText: ""

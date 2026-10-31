@@ -10,27 +10,41 @@ Item {
     property alias addOpen: view.addOpen
     property alias status: view.status
     readonly property var now: new Date(2026, 9, 31, 14, 48)
+    // Shape of `gcalcli agenda --tsv --details id --details url --details conference --details calendar`
+    readonly property string head: "id\tstart_date\tstart_time\tend_date\tend_time\thtml_link\thangout_link\tconference_entry_point_type\tconference_uri\ttitle\tcalendar"
     readonly property string tsv: [
-        "id\tstart_date\tstart_time\tend_date\tend_time\thtml_link\thangout_link\tconference_entry_point_type\tconference_uri\ttitle\tlocation\tdescription\tcalendar\temail\taction",
+        root.head,
         row("2026-10-05", "09:30", "2026-10-05", "10:00", "Car service"),
         row("2026-10-12", "18:00", "2026-10-12", "19:00", "Parents evening at school"),
         row("2026-10-15", "12:30", "2026-10-15", "13:30", "Lunch with Anna"),
         row("2026-10-20", "11:00", "2026-10-20", "11:30", "Sprint planning", true),
         row("2026-10-26", "20:00", "2026-10-26", "22:00", "Concert"),
+        row("2026-10-28", "23:00", "2026-10-29", "00:00", "Late call"),
         row("2026-10-31", "", "2026-11-01", "", "Halloween", false, "Holidays"),
         row("2026-10-31", "08:00", "2026-10-31", "09:00", "Gym"),
         row("2026-10-31", "15:00", "2026-10-31", "15:15", "Standup", true),
         row("2026-10-31", "17:30", "2026-10-31", "18:00", "Dentist"),
         row("2026-10-31", "19:00", "2026-10-31", "21:00", "Dinner"),
         row("2026-11-02", "10:00", "2026-11-02", "10:30", "1:1 with lead", true),
-        row("2026-11-03", "", "2026-11-03", "", "Trip", false, "Holidays"),
-        row("2026-11-05", "23:30", "2026-11-06", "00:30", "Night call")
+        row("2026-11-03", "", "2026-11-04", "", "Trip", false, "Holidays"),
+        row("2026-11-05", "23:30", "2026-11-06", "00:30", "Night call"),
+        row("2026-11-09", "", "2026-11-12", "", "Conference")
     ].join("\n")
     readonly property var rows: Gcal.parseAgenda(tsv)
-    readonly property var today: Gcal.dayItems(Gcal.byDay(rows, ""), now, now)
+    readonly property var days: Gcal.byDay(rows, "")
+    readonly property var today: Gcal.dayItems(days, now)
 
     function row(sd, st, ed, et, title, meet, calendar) {
-        return ["x", sd, st, ed, et, "https://calendar.google.com", meet ? "https://meet.google.com/x" : "", "", "", title, "", "", calendar ?? "Personal", "", ""].join("\t");
+        const id = `ev${sd.replace(/-/g, "")}${st.replace(":", "")}`;
+        return [id, sd, st, ed, et, `https://www.google.com/calendar/event?eid=${id}`, meet ? "https://meet.google.com/abc-defg-hij" : "", "", "", title, calendar ?? "Personal"].join("\t");
+    }
+
+    function lines(list) {
+        const at = Gcal.nowIndex(list, root.now, root.now);
+        const titles = list.map(e => e.title);
+        if (at >= 0)
+            titles.splice(at, 0, "now");
+        return titles.join(",");
     }
 
     GcalView {
@@ -38,28 +52,97 @@ Item {
         anchors.fill: parent
         surface: true
         now: root.now
-        days: Gcal.byDay(root.rows, "")
+        days: root.days
         status: "ready"
         errorText: ""
     }
 
+    // Week mode open on an old day while the clock crosses into the next month
+    GcalView {
+        id: midnight
+        visible: false
+        width: 354
+        height: 350
+        now: new Date(2026, 9, 31, 23, 59)
+        days: root.days
+        status: "ready"
+        selected: "2026-10-05"
+    }
+
+    // A refetch brings new objects for the same events
+    EventList {
+        id: refetched
+        visible: false
+        width: 300
+        height: 300
+        day: root.now
+        now: root.now
+        days: root.days
+        property var firstRow: null
+    }
+    Timer {
+        running: true
+        interval: 300
+        onTriggered: {
+            refetched.firstRow = refetched.children[0].itemAtIndex(0);
+            refetched.days = Gcal.byDay(Gcal.parseAgenda(root.tsv.replace("\tHalloween\t", "\tHalloween party\t")), "");
+        }
+    }
+
     function checks() {
         const day = new Date(2026, 10, 3);
+        const appended = t => Gcal.quickPlan(t, day, root.now).text === `${t} November 3 2026`;
+        const kept = t => {
+            const plan = Gcal.quickPlan(t, day, root.now);
+            return plan.text === t && plan.day === null;
+        };
+        const tabbed = Gcal.parseAgenda(`${root.head}\nev1\t2026-10-31\t08:00\t2026-10-31\t09:00\thttps://www.google.com/calendar/event?eid=ev1\t\t\t\tCoffee\tchat\tHolidays`);
+        midnight.now = new Date(2026, 10, 1, 0, 0);
         return [
             {
                 "name": "every row of the tsv parses",
                 "got": root.rows.length,
-                "want": 13
+                "want": 15
+            },
+            {
+                "name": "a notice before the header is skipped",
+                "got": Gcal.parseAgenda(`Moving oauth file from legacy path /a to /b...\n${root.tsv}`)?.length,
+                "want": 15
+            },
+            {
+                "name": "output without a header is no result, not an empty day",
+                "got": Gcal.parseAgenda("Moving oauth file from legacy path /a to /b...\n"),
+                "want": null
+            },
+            {
+                "name": "a tab in a title stays in the title, the calendar is still read",
+                "got": `${tabbed[0].title}|${tabbed[0].calendar}|${tabbed[0].startText}`,
+                "want": "Coffee\tchat|Holidays|08:00"
+            },
+            {
+                "name": "agenda asks only for columns after which title is the only free text",
+                "got": Gcal.agendaDetails.join(","),
+                "want": "id,url,conference,calendar"
             },
             {
                 "name": "all-day first, now line after the last finished event",
-                "got": root.today.map(e => e.nowLine ? "now" : e.title).join(","),
+                "got": root.lines(root.today),
                 "want": "Halloween,Gym,now,Standup,Dentist,Dinner"
             },
             {
+                "name": "no now line on another day",
+                "got": Gcal.nowIndex(root.days["2026-11-02"], new Date(2026, 10, 2), root.now),
+                "want": -1
+            },
+            {
                 "name": "an all-day event is not past until its day ends",
-                "got": root.today[0].past,
-                "want": false
+                "got": [Gcal.isPast(root.today[0], root.now, root.now), Gcal.isPast(root.today[1], root.now, root.now)].join(","),
+                "want": "false,true"
+            },
+            {
+                "name": "day items are the grouped events themselves, stable across ticks",
+                "got": Gcal.dayItems(root.days, root.now) === Gcal.dayItems(root.days, new Date(2026, 9, 31, 20, 0)),
+                "want": true
             },
             {
                 "name": "a hidden calendar drops out",
@@ -67,29 +150,49 @@ Item {
                 "want": 4
             },
             {
-                "name": "an event past midnight is on both days",
-                "got": [Gcal.byDay(root.rows, "")["2026-11-05"]?.length, Gcal.byDay(root.rows, "")["2026-11-06"]?.length].join(","),
-                "want": "1,1"
+                "name": "an event past midnight is on both days, one ending at midnight only on its own",
+                "got": ["2026-11-05", "2026-11-06", "2026-10-28", "2026-10-29"].map(d => root.days[d]?.length ?? 0).join(","),
+                "want": "1,1,1,0"
+            },
+            {
+                "name": "a multi-day all-day event is on each of its days, end date exclusive",
+                "got": ["2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-03", "2026-11-04"].map(d => root.days[d]?.length ?? 0).join(","),
+                "want": "1,1,1,0,1,0"
+            },
+            {
+                "name": "midnight keeps the viewed month and the picked week",
+                "got": `${Gcal.toIso(midnight.viewingDate)} row ${Gcal.rowOf(midnight.viewingDate, midnight.selectedDate)}`,
+                "want": "2026-10-01 row 1"
+            },
+            {
+                "name": "a refetch keeps the row and shows the new data",
+                "got": `${refetched.children[0].itemAtIndex(0) === refetched.firstRow && refetched.firstRow !== null} ${refetched.children[0].itemAtIndex(0)?.modelData?.title}`,
+                "want": "true Halloween party"
             },
             {
                 "name": "text without a day gets the picked one",
-                "got": Gcal.quickText("Lunch with Anna 1pm", day),
+                "got": Gcal.quickPlan("Lunch with Anna 1pm", day, root.now).text,
                 "want": "Lunch with Anna 1pm November 3 2026"
             },
             {
-                "name": "a time with a dot is not a date",
-                "got": Gcal.quickText("Call 12.30", day),
-                "want": "Call 12.30 November 3 2026"
-            },
-            {
-                "name": "day words keep the text as is",
-                "got": ["Dentist friday 5pm", "Sync on the 5th", "Party 10.11", "Sprint 2026-11-20", "Встреча завтра в 15:00", "Ужин в субботу", "Отпуск 3 ноября"].every(t => Gcal.quickText(t, day) === t),
-                "want": true
-            },
-            {
                 "name": "words that only look like days append the date",
-                "got": ["Mark the market", "1:1 with lead", "Обед 13.00", "Среднее"].every(t => Gcal.quickText(t, day) !== t),
-                "want": true
+                "got": ["Lunch with Jan", "Call May 3pm", "Maybe 3 people", "Sun salutation yoga", "4th floor sync", "Mark the market", "1:1 with lead", "Call 12.30", "Party 10.11", "Встреча 10.05", "Обед 13.00", "Обсуждение среды", "Среднее"].filter(t => !appended(t)).join("|"),
+                "want": ""
+            },
+            {
+                "name": "English day phrases are left for Google",
+                "got": ["Dentist friday 5pm", "Review on wed", "next week standup", "in 3 days review", "Dinner tomorrow 7pm", "Trip May 3", "Call 3 May", "Sync on the 5th", "Sprint 2026-11-20", "Retro 11/20"].filter(t => !kept(t)).join("|"),
+                "want": ""
+            },
+            {
+                "name": "Russian day phrases become an English date, Google quick-add reads only English",
+                "got": ["Встреча завтра в 15:00", "Ужин в субботу", "Ретро в среду", "Звонок в следующую среду", "Отпуск 3 ноября", "Сессия 5 января", "Отчет через 3 дня", "Сдать 10.11.2026"].map(t => Gcal.quickPlan(t, day, root.now).text).join("|"),
+                "want": ["Встреча November 1 2026 at 15:00", "Ужин October 31 2026", "Ретро November 4 2026", "Звонок November 4 2026", "Отпуск November 3 2026", "Сессия January 5 2027", "Отчет November 3 2026", "Сдать November 10 2026"].join("|")
+            },
+            {
+                "name": "a Russian time keeps the picked day",
+                "got": Gcal.quickPlan("Обед в 13:00", day, root.now).text,
+                "want": "Обед at 13:00 November 3 2026"
             },
             {
                 "name": "gcalcli asking to sign in reads as noauth",

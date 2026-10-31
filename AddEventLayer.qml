@@ -1,14 +1,16 @@
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import "gcal.js" as Gcal
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 
 /** + FAB and the quick-add dialog, To Do tab style. */
 Item {
     id: root
     property var day: new Date()
+    property var now: new Date()
+    readonly property var plan: Gcal.quickPlan(eventInput.text, root.day, root.now)
     readonly property bool adding: GcalState.adding
     readonly property string addError: GcalState.addError
 
@@ -119,32 +121,13 @@ Item {
                     Layout.rightMargin: 16
                     spacing: 6
 
-                    TextField {
+                    MaterialTextField {
                         id: eventInput
                         Layout.fillWidth: true
-                        padding: 10
-                        color: activeFocus ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3onSurfaceVariant
-                        renderType: Text.NativeRendering
-                        selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
-                        selectionColor: Appearance.colors.colSecondaryContainer
+                        wrapMode: TextEdit.NoWrap
                         placeholderText: Translation.tr("Lunch with Anna 1pm")
-                        placeholderTextColor: Appearance.m3colors.m3outline
                         focus: root.open
                         onAccepted: dialog.addEvent()
-
-                        background: Rectangle {
-                            anchors.fill: parent
-                            radius: Appearance.rounding.verysmall
-                            border.width: 2
-                            border.color: eventInput.activeFocus ? Appearance.colors.colPrimary : Appearance.m3colors.m3outline
-                            color: "transparent"
-                        }
-
-                        cursorDelegate: Rectangle {
-                            width: 1
-                            color: eventInput.activeFocus ? Appearance.colors.colPrimary : "transparent"
-                            radius: 1
-                        }
                     }
 
                     RowLayout {
@@ -160,7 +143,9 @@ Item {
                             Layout.fillWidth: true
                             text: root.addError !== "" ? root.addError
                                 : root.adding ? Translation.tr("Adding...")
-                                : Translation.tr("%1, or name a day in the text").arg(root.day.toLocaleDateString(Qt.locale(), "ddd, d MMM"))
+                                : eventInput.text.trim() === "" ? Translation.tr("%1, or name a day in the text").arg(root.day.toLocaleDateString(Qt.locale(), "ddd, d MMM"))
+                                : root.plan.day ? Translation.tr("Adds on %1").arg(root.plan.day.toLocaleDateString(Qt.locale(), "ddd, d MMM"))
+                                : Translation.tr("Google reads the day from the text")
                             elide: Text.ElideRight
                             font.pixelSize: Appearance.font.pixelSize.smaller
                             color: root.addError !== "" ? Appearance.colors.colError : Appearance.colors.colSubtext

@@ -11,8 +11,8 @@ ColumnLayout {
     property var days: ({})
     property string status: "ready"
     property string errorText: ""
-    property int monthShift: 0
-    property var viewingDate: Gcal.viewDate(monthShift, now)
+    property bool currentMonth: true
+    property var viewingDate: Gcal.monthOf(now)
     property var selectedDate: null
     property bool weekMode: false
     readonly property var cells: Gcal.monthCells(viewingDate, now)
@@ -29,8 +29,8 @@ ColumnLayout {
         HeaderButton {
             id: monthButton
             clip: true
-            buttonText: `${root.monthShift != 0 && !root.weekMode ? "• " : ""}${root.viewingDate.toLocaleDateString(Qt.locale(), "MMMM yyyy")}`
-            tooltipText: root.weekMode ? Translation.tr("Show month") : (root.monthShift === 0) ? "" : Translation.tr("Jump to current month")
+            buttonText: `${!root.currentMonth && !root.weekMode ? "• " : ""}${root.viewingDate.toLocaleDateString(Qt.locale(), "MMMM yyyy")}`
+            tooltipText: root.weekMode ? Translation.tr("Show month") : root.currentMonth ? "" : Translation.tr("Jump to current month")
             contentItem: RowLayout {
                 spacing: 2
                 StyledText {
