@@ -30,13 +30,19 @@ showing a blank day.
 
 - Events of the six weeks on screen are fetched in one `gcalcli agenda --tsv`
   run, again on month change, after adding, and every few minutes while the
-  widget is enabled. A failed run keeps the last events and turns the header
-  into a retry button.
+  tab is open; opening it refetches if the data is older than that. A failed
+  run keeps the last events and turns the header into a retry button, signing
+  out clears them.
 - All-day events come first, finished ones are dimmed, today has a line at the
   current time. Clicking an event opens it in the browser.
-- Adding passes the text to `gcalcli quick`. Text that names no day of its own
-  ("Lunch with Anna 1pm") gets the picked day appended; "friday 5pm",
-  "10.11", "завтра" and the like are left for Google to read.
+- Scroll, the arrows or PageUp/PageDown change the month, or the week once a
+  day is open.
+- Adding passes the text to `gcalcli quick`. Google reads days only in English:
+  "friday 5pm", "May 3", "next week" are left to it, text without a day
+  ("Lunch with Anna 1pm") gets the picked day appended. Russian day phrases
+  ("завтра", "в пятницу", "3 ноября", "через 3 дня", "10.11.2026") are
+  replaced with the English date. The dialog shows which day the event lands
+  on.
 
 ## Options
 
