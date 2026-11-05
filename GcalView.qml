@@ -61,9 +61,18 @@ Item {
     }
 
     MouseArea {
+        property real wheelDelta: 0
+        property real lastStep: 0
         anchors.fill: parent
         enabled: !root.weekMode
-        onWheel: event => root.step(event.angleDelta.y > 0 ? -1 : 1)
+        onWheel: event => {
+            wheelDelta += event.angleDelta.y;
+            if (Math.abs(wheelDelta) < 120 || Date.now() - lastStep < 200)
+                return;
+            root.step(wheelDelta > 0 ? -1 : 1);
+            wheelDelta = 0;
+            lastStep = Date.now();
+        }
     }
 
     MonthGrid {
@@ -89,7 +98,7 @@ Item {
 
     EventList {
         anchors.top: grid.bottom
-        anchors.topMargin: 5
+        anchors.topMargin: 10
         anchors.left: grid.left
         anchors.right: grid.right
         anchors.bottom: parent.bottom
@@ -102,7 +111,7 @@ Item {
         opacity: root.weekMode ? 1 : 0
         visible: opacity > 0
         Behavior on opacity {
-            animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
+            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
         }
     }
 

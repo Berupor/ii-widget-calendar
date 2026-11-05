@@ -35,8 +35,8 @@ showing a blank day.
   out clears them.
 - All-day events come first, finished ones are dimmed, today has a line at the
   current time. Clicking an event opens it in the browser.
-- Scroll, the arrows or PageUp/PageDown change the month, or the week once a
-  day is open.
+- Scroll changes the month. The arrows and PageUp/PageDown change the month,
+  or the week once a day is open.
 - Adding passes the text to `gcalcli quick`. Google reads days only in English:
   "friday 5pm", "May 3", "next week" are left to it, text without a day
   ("Lunch with Anna 1pm") gets the picked day appended. Russian day phrases

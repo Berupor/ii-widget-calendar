@@ -17,11 +17,28 @@ ColumnLayout {
     property bool weekMode: false
     readonly property var cells: Gcal.monthCells(viewingDate, now)
     readonly property int selectedRow: Gcal.rowOf(viewingDate, selectedDate)
+    readonly property string monthKey: Gcal.toIso(viewingDate)
+    property string issue: status
+    property real monthFade: 1
     signal daySelected(var date)
     signal headerClicked
     signal stepped(int delta)
 
     spacing: 0
+
+    onStatusChanged: if (status !== "ready") issue = status
+    onMonthKeyChanged: monthFadeIn.restart()
+
+    NumberAnimation {
+        id: monthFadeIn
+        target: root
+        property: "monthFade"
+        from: 0.4
+        to: 1
+        duration: Appearance.animation.elementMoveFast.duration
+        easing.type: Appearance.animation.elementMoveFast.type
+        easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+    }
 
     RowLayout {
         Layout.fillWidth: true
@@ -53,21 +70,29 @@ ColumnLayout {
         }
         HeaderButton {
             forceCircle: true
-            visible: root.status !== "ready"
-            colBackground: root.status === "loading" ? Appearance.colors.colLayer2 : Appearance.colors.colErrorContainer
-            colBackgroundHover: root.status === "loading" ? Appearance.colors.colLayer2Hover : Appearance.colors.colErrorContainerHover
-            colRipple: root.status === "loading" ? Appearance.colors.colLayer2Active : Appearance.colors.colErrorContainerActive
-            tooltipText: root.status === "loading" ? Translation.tr("Loading events")
-                : root.status === "noauth" ? Translation.tr("Not signed in: run gcalcli init in a terminal")
+            opacity: root.status !== "ready" ? 1 : 0
+            visible: opacity > 0
+            scale: root.status !== "ready" ? 1 : 0.6
+            colBackground: root.issue === "loading" ? Appearance.colors.colLayer2 : Appearance.colors.colErrorContainer
+            colBackgroundHover: root.issue === "loading" ? Appearance.colors.colLayer2Hover : Appearance.colors.colErrorContainerHover
+            colRipple: root.issue === "loading" ? Appearance.colors.colLayer2Active : Appearance.colors.colErrorContainerActive
+            tooltipText: root.issue === "loading" ? Translation.tr("Loading events")
+                : root.issue === "noauth" ? Translation.tr("Not signed in: run gcalcli init in a terminal")
                 : `${root.errorText}. ${Translation.tr("Click to retry")}`
             downAction: () => GcalState.refresh()
+            Behavior on opacity {
+                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+            }
+            Behavior on scale {
+                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+            }
             contentItem: MaterialSymbol {
-                text: root.status === "loading" ? "sync" : root.status === "noauth" ? "no_accounts" : "cloud_off"
+                text: root.issue === "loading" ? "sync" : root.issue === "noauth" ? "no_accounts" : "cloud_off"
                 iconSize: Appearance.font.pixelSize.larger
                 horizontalAlignment: Text.AlignHCenter
-                color: root.status === "loading" ? Appearance.colors.colOnLayer1 : Appearance.colors.colOnErrorContainer
+                color: root.issue === "loading" ? Appearance.colors.colOnLayer1 : Appearance.colors.colOnErrorContainer
                 RotationAnimation on rotation {
-                    running: root.status === "loading"
+                    running: root.issue === "loading" && parent.visible
                     loops: Animation.Infinite
                     from: 360
                     to: 0
@@ -126,7 +151,7 @@ ColumnLayout {
             opacity: shown ? 1 : 0
             clip: true
             Behavior on implicitHeight {
-                animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
+                animation: Appearance.animation.elementResize.numberAnimation.createObject(this)
             }
             Behavior on opacity {
                 animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
@@ -135,6 +160,7 @@ ColumnLayout {
             RowLayout {
                 id: weekRow
                 anchors.bottom: parent.bottom
+                opacity: root.monthFade
                 spacing: 5
                 Repeater {
                     model: 7

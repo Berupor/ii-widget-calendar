@@ -170,7 +170,7 @@ Item {
         anchors.bottomMargin: root.listBottomPadding / 2
 
         Behavior on opacity {
-            animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
+            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
         }
 
         ColumnLayout {

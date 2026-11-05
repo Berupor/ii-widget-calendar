@@ -43,7 +43,9 @@ RippleButton {
     }
 
     Rectangle {
-        visible: button.hasEvents
+        visible: opacity > 0
+        opacity: button.hasEvents ? 1 : 0
+        scale: button.hasEvents ? 1 : 0.4
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 4
@@ -53,5 +55,15 @@ RippleButton {
         color: (button.isToday == 1 || button.tonal) ? button.contentColor
             : (button.isToday == 0) ? Appearance.colors.colPrimary
             : Appearance.colors.colOutlineVariant
+
+        Behavior on opacity {
+            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+        }
+        Behavior on scale {
+            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+        }
+        Behavior on color {
+            animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+        }
     }
 }

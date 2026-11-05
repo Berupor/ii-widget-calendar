@@ -31,6 +31,7 @@ Item {
         radius: fabButton.buttonRadius
         blur: 0.6 * Appearance.sizes.elevationMargin
         opacity: fabButton.opacity
+        scale: fabButton.scale
     }
     FloatingActionButton {
         id: fabButton
@@ -58,12 +59,9 @@ Item {
         visible: opacity > 0
         opacity: root.open ? 1 : 0
         Behavior on opacity {
-            NumberAnimation {
-                duration: Appearance.animation.elementMoveFast.duration
-                easing.type: Appearance.animation.elementMoveFast.type
-                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-            }
+            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
         }
+        Keys.onEscapePressed: root.open = false
 
         onVisibleChanged: {
             if (visible)
@@ -91,9 +89,14 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             anchors.margins: root.dialogMargins
             implicitHeight: dialogColumnLayout.implicitHeight
+            scale: root.open ? 1 : 0.92
 
             color: Appearance.m3colors.m3surfaceContainerHigh
             radius: Appearance.rounding.normal
+
+            Behavior on scale {
+                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+            }
 
             function addEvent() {
                 if (eventInput.text.trim().length > 0 && !root.adding)
