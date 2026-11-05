@@ -90,9 +90,9 @@ A provider is `providers/<Name>.qml` plus a line in the `providers` map of
 ## Working on it
 
 ```sh
-tests/widget-probe.sh calendar calendarView -x ~/Projects/ii-widget-gcal -H sidebar -g 354x350 -p surface=true
-tests/qml-cases.sh    -x ~/Projects/ii-widget-gcal
-tests/widget-shots.sh -x ~/Projects/ii-widget-gcal
+tests/widget-probe.sh calendar calendarView -x ~/Projects/ii-widget-calendar -H sidebar -g 354x350 -p surface=true
+tests/qml-cases.sh    -x ~/Projects/ii-widget-calendar
+tests/widget-shots.sh -x ~/Projects/ii-widget-calendar
 ```
 
 `-p selected=2026-11-04` opens a day, `-p status=setup` or `error` draws
@@ -104,7 +104,7 @@ redraws the shots on push.
 Settings → Widgets → Install a widget, paste:
 
 ```
-https://github.com/Berupor/ii-widget-gcal.git
+https://github.com/Berupor/ii-widget-calendar.git
 ```
 
 Needs shell contract 1.6, which added the `calendarView` slot.
