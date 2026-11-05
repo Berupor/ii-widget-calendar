@@ -247,6 +247,9 @@ function shortError(output, exitCode) {
         return "gcalcli timed out"
     if (/ServerNotFound|Unable to find the server|NameResolution|Temporary failure in name|Network is unreachable|ConnectionError|ConnectionRefused|TimeoutError|timed out/i.test(out))
         return "Can't reach Google Calendar"
+    const http = /HttpError (\d{3})/.exec(out)
+    if (http)
+        return http[1] >= 500 ? `Google Calendar is down (${http[1]}), try again` : `Google Calendar refused it (${http[1]})`
     if (/Specify calendar/.test(out))
         return "Set a calendar for new events in the widget options"
     if (/No available calendar|Invalid selection/.test(out))

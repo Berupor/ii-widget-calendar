@@ -214,6 +214,11 @@ Item {
                 "name": "a network failure gets a short message",
                 "got": Gcal.shortError("Traceback\nhttplib2.error.ServerNotFoundError: Unable to find the server at oauth2.googleapis.com", 1),
                 "want": "Can't reach Google Calendar"
+            },
+            {
+                "name": "an http error names its code",
+                "got": [503, 400].map(c => Gcal.shortError(`googleapiclient.errors.HttpError: <HttpError ${c} when requesting https://www.googleapis.com/calendar/v3/calendars/x/events/quickAdd returned "Backend Error">`, 1)).join("|"),
+                "want": "Google Calendar is down (503), try again|Google Calendar refused it (400)"
             }
         ];
     }
