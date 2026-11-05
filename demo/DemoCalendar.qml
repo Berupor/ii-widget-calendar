@@ -92,7 +92,7 @@ Item {
 
     function checks() {
         const day = new Date(2026, 10, 3);
-        const appended = t => Gcal.quickPlan(t, day, root.now).text === `${t} November 3 2026`;
+        const appended = t => Gcal.quickPlan(t, day, root.now).text === `${t} on November 3 2026`;
         const kept = t => {
             const plan = Gcal.quickPlan(t, day, root.now);
             return plan.text === t && plan.day === null;
@@ -173,7 +173,7 @@ Item {
             {
                 "name": "text without a day gets the picked one",
                 "got": Gcal.quickPlan("Lunch with Anna 1pm", day, root.now).text,
-                "want": "Lunch with Anna 1pm November 3 2026"
+                "want": "Lunch with Anna 1pm on November 3 2026"
             },
             {
                 "name": "words that only look like days append the date",
@@ -188,12 +188,12 @@ Item {
             {
                 "name": "Russian day phrases become an English date, Google quick-add reads only English",
                 "got": ["Встреча завтра в 15:00", "Ужин в субботу", "Ретро в среду", "Звонок в следующую среду", "Отпуск 3 ноября", "Сессия 5 января", "Отчет через 3 дня", "Сдать 10.11.2026"].map(t => Gcal.quickPlan(t, day, root.now).text).join("|"),
-                "want": ["Встреча November 1 2026 at 15:00", "Ужин October 31 2026", "Ретро November 4 2026", "Звонок November 4 2026", "Отпуск November 3 2026", "Сессия January 5 2027", "Отчет November 3 2026", "Сдать November 10 2026"].join("|")
+                "want": ["Встреча on November 1 2026 at 15:00", "Ужин on October 31 2026", "Ретро on November 4 2026", "Звонок on November 4 2026", "Отпуск on November 3 2026", "Сессия on January 5 2027", "Отчет on November 3 2026", "Сдать on November 10 2026"].join("|")
             },
             {
                 "name": "a Russian time keeps the picked day",
                 "got": Gcal.quickPlan("Обед в 13:00", day, root.now).text,
-                "want": "Обед at 13:00 November 3 2026"
+                "want": "Обед at 13:00 on November 3 2026"
             },
             {
                 "name": "quick-add time reads 24h and am/pm, and ignores dates and ratios",

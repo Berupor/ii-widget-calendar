@@ -173,8 +173,9 @@ function namesDay(text) {
     return enWords.some(re => re.test(t)) || enMonthDay.test(t)
 }
 
-function englishDate(day) {
-    return `${monthNames[day.getMonth()]} ${day.getDate()} ${day.getFullYear()}`
+/// Google answers 503 to a 24h time followed straight by a date ("19:00 December 20 2026"), "on" avoids it
+function onEnglishDate(day) {
+    return `on ${monthNames[day.getMonth()]} ${day.getDate()} ${day.getFullYear()}`
 }
 
 const ruWeekdays = ["воскресенье", "понедельник", "вторник", "среду", "четверг", "пятницу", "субботу"]
@@ -216,11 +217,11 @@ function quickPlan(text, day, now) {
         const resolved = resolve([m[0], ...m.slice(2)], now)
         const from = m.index + m[1].length
         const named = new Date(resolved.getFullYear(), resolved.getMonth(), resolved.getDate())
-        return { text: `${t.slice(0, from)}${englishDate(named)}${t.slice(m.index + m[0].length)}`, day: named }
+        return { text: `${t.slice(0, from)}${onEnglishDate(named)}${t.slice(m.index + m[0].length)}`, day: named }
     }
     if (namesDay(t) || !day)
         return { text: t, day: null }
-    return { text: `${t} ${englishDate(day)}`, day: day }
+    return { text: `${t} ${onEnglishDate(day)}`, day: day }
 }
 
 /// "HH:MM" of the first time in quick-add text ("13:00", "1:30pm", "5 pm"), "" when it has none
