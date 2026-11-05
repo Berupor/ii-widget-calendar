@@ -195,6 +195,11 @@ Item {
                 "want": "Обед at 13:00 November 3 2026"
             },
             {
+                "name": "a fetch reaches past the view by the margin, and covers the neighbouring months",
+                "got": [Gcal.fetchWindow("2026-09-28 2026-11-09", 60), Gcal.covers("2026-07-30 2027-01-08", "2026-11-02 2026-12-14"), Gcal.covers("2026-07-30 2027-01-08", "2026-06-29 2026-08-10")].join("|"),
+                "want": "2026-07-30 2027-01-08|true|false"
+            },
+            {
                 "name": "gcalcli asking to sign in reads as noauth",
                 "got": Gcal.needsAuth("Not yet authenticated.\nStarting auth flow..."),
                 "want": true

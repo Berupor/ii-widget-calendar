@@ -24,13 +24,14 @@ Singleton {
 
     /// "start end" of the window the view shows, iso days
     property string range: ""
-    property string fetchedRange: ""
+    readonly property int fetchMarginDays: 60
+    property string fetchedWindow: ""
     property real fetchedAt: 0
     property bool pending: false
     property bool needsAuth: false
     property string errorText: ""
     // A failed run keeps the last rows, a retry reads as loading
-    readonly property string status: (root.fetchedRange !== root.range || fetchProc.running && (root.needsAuth || root.errorText !== "")) ? "loading"
+    readonly property string status: (!Gcal.covers(root.fetchedWindow, root.range) || fetchProc.running && (root.needsAuth || root.errorText !== "")) ? "loading"
         : root.needsAuth ? "noauth" : root.errorText !== "" ? "error" : "ready"
 
     property bool adding: false
@@ -44,7 +45,12 @@ Singleton {
         if (next === root.range)
             return;
         root.range = next;
-        root.refresh();
+        if (!root.isFresh() && !(fetchProc.running && Gcal.covers(fetchProc.window, next)))
+            root.refresh();
+    }
+
+    function isFresh() {
+        return Gcal.covers(root.fetchedWindow, root.range) && Date.now() - root.fetchedAt < root.refreshMinutes * 60000;
     }
 
     function refresh() {
@@ -54,8 +60,8 @@ Singleton {
             root.pending = true;
             return;
         }
-        fetchProc.window = root.range;
-        fetchProc.command = ["timeout", "60", "gcalcli", "--nocolor", "agenda", "--tsv", ...[].concat(...Gcal.agendaDetails.map(d => ["--details", d])), ...root.range.split(" ")];
+        fetchProc.window = Gcal.fetchWindow(root.range, root.fetchMarginDays);
+        fetchProc.command = ["timeout", "60", "gcalcli", "--nocolor", "agenda", "--tsv", ...[].concat(...Gcal.agendaDetails.map(d => ["--details", d])), ...fetchProc.window.split(" ")];
         fetchProc.running = true;
     }
 
@@ -90,7 +96,7 @@ Singleton {
     }
 
     onActiveChanged: {
-        if (root.active && (root.fetchedRange !== root.range || Date.now() - root.fetchedAt > root.refreshMinutes * 60000))
+        if (root.active && !root.isFresh())
             root.refresh();
     }
 
@@ -132,8 +138,8 @@ Singleton {
             } else {
                 root.fail(exitCode === 0 ? "Unexpected gcalcli output" : Gcal.shortError(output, exitCode), exitCode);
             }
-            root.fetchedRange = fetchProc.window;
-            if (root.pending || fetchProc.window !== root.range) {
+            root.fetchedWindow = fetchProc.window;
+            if (root.pending || !Gcal.covers(fetchProc.window, root.range)) {
                 root.pending = false;
                 root.refresh();
             }

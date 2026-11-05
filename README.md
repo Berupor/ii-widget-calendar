@@ -28,9 +28,10 @@ showing a blank day.
 
 ## How it works
 
-- Events of the six weeks on screen are fetched in one `gcalcli agenda --tsv`
-  run, again on month change, after adding, and every few minutes while the
-  tab is open; opening it refetches if the data is older than that. A failed
+- Events of the six weeks on screen and two months around them are fetched
+  in one `gcalcli agenda --tsv` run, so nearby months show instantly. It runs
+  again when you leave that window, after adding, and every few minutes while
+  the tab is open; opening the tab refetches if the data is older than that. A failed
   run keeps the last events and turns the header into a retry button, signing
   out clears them.
 - All-day events come first, finished ones are dimmed, today has a line at the

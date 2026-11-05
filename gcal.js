@@ -55,6 +55,19 @@ function rowOf(view, day) {
     return idx < 0 || idx >= 42 ? -1 : Math.floor(idx / 7)
 }
 
+/// "start end" iso days of a fetch around a view range, `margin` days further each way
+function fetchWindow(range, margin) {
+    const [start, end] = range.split(" ").map(fromIso)
+    return `${toIso(addDays(start, -margin))} ${toIso(addDays(end, margin))}`
+}
+
+/// Whether the "start end" iso range `outer` holds `inner`
+function covers(outer, inner) {
+    const [outerStart, outerEnd] = outer.split(" ")
+    const [innerStart, innerEnd] = inner.split(" ")
+    return outerStart <= innerStart && innerEnd <= outerEnd
+}
+
 function at(date, time) {
     const d = fromIso(date)
     if (!d)
