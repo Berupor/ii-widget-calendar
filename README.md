@@ -38,6 +38,7 @@ to run instead of showing a blank day.
   clears them.
 - All-day events come first, finished ones are dimmed, today has a line at the
   current time. Clicking an event opens it in the browser.
+- The week starts on the locale's first day of the week.
 - Scroll changes the month. The arrows and PageUp/PageDown change the month,
   or the week once a day is open.
 - With gcalcli, adding passes the text to `gcalcli quick`. Google reads days
@@ -64,9 +65,11 @@ A provider is `providers/<Name>.qml` plus a line in the `providers` map of
   `fetched(window, rows, failure)`. `rows` is null on failure; `failure` is
   `{ setup, text, exitCode }`, `setup` meaning not installed or not signed in
   (events are cleared and `text` says what to run).
-- `canAdd`, `add(text, day, calendar)` answered by `added()` or
+- `canAdd`, `add(text, day, now, calendar)` answered by `added()` or
   `addFailed(failure)`, and `plan(text, day, now)` returning
   `{ text, day }` for the dialog preview (`day` null when the text names its own).
+  `add` plans with the same `now` as the preview, so the event lands on the day
+  the dialog showed.
 - Rows shaped `{ key, title, calendar, link, call, allDay, startText, endText,
   start, end }`: `call` is a label like "Google Meet" or empty, `start`/`end`
   are epoch ms.

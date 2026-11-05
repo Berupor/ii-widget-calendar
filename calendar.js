@@ -39,14 +39,20 @@ function addMonths(view, n) {
     return new Date(view.getFullYear(), view.getMonth() + n, 1)
 }
 
-/// First cell of the 6-week grid, a Monday
-function gridStart(view) {
-    const first = new Date(view.getFullYear(), view.getMonth(), 1)
-    return addDays(first, -((first.getDay() + 6) % 7))
+/// `weekDays` starting at `weekStart`, 0 is Sunday and 1 Monday as in Date.getDay() and Qt.locale().firstDayOfWeek
+function weekHeader(weekStart = 1) {
+    const at = (weekStart + 6) % 7
+    return weekDays.slice(at).concat(weekDays.slice(0, at))
 }
 
-function monthCells(view, now) {
-    const start = gridStart(view)
+/// First cell of the 6-week grid, the `weekStart` day on or before the 1st
+function gridStart(view, weekStart = 1) {
+    const first = new Date(view.getFullYear(), view.getMonth(), 1)
+    return addDays(first, -(((first.getDay() - weekStart) % 7 + 7) % 7))
+}
+
+function monthCells(view, now, weekStart = 1) {
+    const start = gridStart(view, weekStart)
     const cells = []
     for (let i = 0; i < 42; i++) {
         const d = addDays(start, i)
@@ -55,10 +61,10 @@ function monthCells(view, now) {
     return cells
 }
 
-function rowOf(view, day) {
+function rowOf(view, day, weekStart = 1) {
     if (!day)
         return -1
-    const idx = Math.round((day - gridStart(view)) / 86400000)
+    const idx = Math.round((day - gridStart(view, weekStart)) / 86400000)
     return idx < 0 || idx >= 42 ? -1 : Math.floor(idx / 7)
 }
 
@@ -83,20 +89,28 @@ function at(date, time) {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m)
 }
 
-/// Events keyed by iso day, multi-day ones on every day they touch; all-day first
-function byDay(rows, hidden) {
+/// Events keyed by iso day, multi-day ones on every day they touch inside the "start end" iso `window`, all of them without one; all-day first
+function byDay(rows, hidden, window) {
     const skip = (hidden ?? "").split(",").map(s => s.trim().toLowerCase()).filter(s => s.length > 0)
+    const [from, to] = (window ?? "").split(" ").map(fromIso)
     const days = {}
     for (const ev of rows ?? []) {
         if (skip.includes(ev.calendar.toLowerCase()))
             continue
         let day = new Date(ev.start)
         day = new Date(day.getFullYear(), day.getMonth(), day.getDate())
-        do {
+        if (from && day < from) {
+            day = from
+            if (day.getTime() >= ev.end)
+                continue
+        }
+        while (!to || day <= to) {
             const iso = toIso(day)
             ;(days[iso] = days[iso] ?? []).push(ev)
             day = addDays(day, 1)
-        } while (day.getTime() < ev.end)
+            if (day.getTime() >= ev.end)
+                break
+        }
     }
     for (const iso in days)
         days[iso].sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start) || a.title.localeCompare(b.title))

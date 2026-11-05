@@ -15,8 +15,9 @@ ColumnLayout {
     property var viewingDate: Cal.monthOf(now)
     property var selectedDate: null
     property bool weekMode: false
-    readonly property var cells: Cal.monthCells(viewingDate, now)
-    readonly property int selectedRow: Cal.rowOf(viewingDate, selectedDate)
+    property int weekStart: 1
+    readonly property var cells: Cal.monthCells(viewingDate, now, weekStart)
+    readonly property int selectedRow: Cal.rowOf(viewingDate, selectedDate, weekStart)
     readonly property string monthKey: Cal.toIso(viewingDate)
     property string issue: status
     property real monthFade: 1
@@ -128,7 +129,7 @@ ColumnLayout {
         Layout.topMargin: 5
         spacing: 5
         Repeater {
-            model: Cal.weekDays
+            model: Cal.weekHeader(root.weekStart)
             delegate: DayButton {
                 required property var modelData
                 day: Translation.tr(modelData)

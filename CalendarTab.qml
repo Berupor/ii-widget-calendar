@@ -15,6 +15,7 @@ Item {
     property string errorText: EventsState.errorText
     property bool canAdd: EventsState.canAdd
     property bool surface: false
+    property int weekStart: Qt.locale().firstDayOfWeek
 
     property string selected: ""
     property alias addOpen: addLayer.open
@@ -26,8 +27,9 @@ Item {
     readonly property var viewingDate: viewMonth ?? Cal.monthOf(now)
     readonly property bool currentMonth: Cal.sameDay(viewingDate, Cal.monthOf(now))
     onSelectedDateChanged: if (selectedDate) viewMonth = Cal.monthOf(selectedDate)
+    onWeekStartChanged: viewingDateChanged()
     onViewingDateChanged: {
-        const start = Cal.gridStart(viewingDate);
+        const start = Cal.gridStart(viewingDate, weekStart);
         EventsState.want(start, Cal.addDays(start, 42));
     }
     Component.onCompleted: {
@@ -84,6 +86,7 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         now: root.now
         days: root.days
+        weekStart: root.weekStart
         status: root.status
         errorText: root.errorText
         currentMonth: root.currentMonth

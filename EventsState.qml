@@ -23,7 +23,7 @@ Singleton {
 
     property var now: new Date()
     property var rows: []
-    readonly property var days: Cal.byDay(root.rows, root.hiddenCalendars)
+    readonly property var days: Cal.byDay(root.rows, root.hiddenCalendars, root.fetchedWindow)
 
     /// "start end" of the window the view shows, iso days
     property string range: ""
@@ -35,10 +35,11 @@ Singleton {
     property bool needsSetup: false
     property string failureText: ""
     readonly property string errorText: root.provider ? root.failureText : `Unknown calendar provider "${root.providerName}"`
-    // A failed run keeps the last rows, a retry reads as loading
+    readonly property bool covered: Cal.covers(root.fetchedWindow, root.range)
+    // A failed run keeps the last rows and the window they cover, a retry reads as loading
     readonly property string status: !root.provider ? "setup"
-        : (!Cal.covers(root.fetchedWindow, root.range) || root.fetchingWindow !== "" && (root.needsSetup || root.failureText !== "")) ? "loading"
-        : root.needsSetup ? "setup" : root.failureText !== "" ? "error" : "ready"
+        : root.fetchingWindow !== "" && (!root.covered || root.needsSetup || root.failureText !== "") ? "loading"
+        : root.needsSetup ? "setup" : root.failureText !== "" ? "error" : !root.covered ? "loading" : "ready"
 
     property bool adding: false
     property string addError: ""
@@ -54,7 +55,7 @@ Singleton {
     }
 
     function isFresh() {
-        return Cal.covers(root.fetchedWindow, root.range) && Date.now() - root.fetchedAt < root.refreshMinutes * 60000;
+        return root.covered && Date.now() - root.fetchedAt < root.refreshMinutes * 60000;
     }
 
     function refresh() {
@@ -77,7 +78,7 @@ Singleton {
             return;
         root.addError = "";
         root.adding = true;
-        root.provider.add(text, day, root.addCalendar);
+        root.provider.add(text, day, root.now, root.addCalendar);
     }
 
     onActiveChanged: {
@@ -94,8 +95,11 @@ Singleton {
         root.rows = [];
         root.fetchedWindow = "";
         root.fetchingWindow = "";
+        root.pending = false;
         root.needsSetup = false;
         root.failureText = "";
+        root.adding = false;
+        root.addError = "";
         root.refresh();
     }
 
@@ -105,6 +109,8 @@ Singleton {
             root.fetchingWindow = "";
             root.needsSetup = failure?.setup ?? false;
             root.failureText = failure?.text ?? "";
+            if (rows || root.needsSetup)
+                root.fetchedWindow = window;
             if (rows) {
                 root.rows = rows;
                 root.fetchedAt = Date.now();
@@ -113,7 +119,6 @@ Singleton {
             } else {
                 console.error(`calendar_fetch_failed provider=${root.providerName} exit=${failure.exitCode} message="${failure.text}"`);
             }
-            root.fetchedWindow = window;
             if (root.pending || !Cal.covers(window, root.range)) {
                 root.pending = false;
                 root.refresh();

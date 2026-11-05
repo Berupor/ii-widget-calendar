@@ -21,12 +21,13 @@ function parseAgenda(text) {
             const v = i < 0 ? "" : i < titleAt ? f[i] : i > titleAt ? f[i + extra] : f.slice(i, i + extra + 1).join("\t")
             return v.replace(/\\n/g, "\n")
         }
+        const title = get("title").replace(/\n+/g, " ")
         const allDay = get("start_time") === ""
         const start = Cal.at(get("start_date"), get("start_time"))
         const end = Cal.at(get("end_date"), get("end_time")) ?? start
         return {
-            key: get("id") || `${get("start_date")} ${get("start_time")} ${get("title")}`,
-            title: get("title"),
+            key: get("id") ? `${get("calendar")}/${get("id")}` : `${get("start_date")} ${get("start_time")} ${title}`,
+            title: title,
             calendar: get("calendar"),
             link: get("html_link"),
             call: get("hangout_link") !== "" ? "Google Meet" : get("conference_uri") !== "" ? "Video call" : "",
@@ -37,6 +38,16 @@ function parseAgenda(text) {
             end: end ? end.getTime() : 0
         }
     }).filter(ev => ev && ev.start > 0)
+}
+
+/// Rows or failure of a finished `agenda` run; a run that exited 0 with a header is a success whatever the titles say
+function agendaResult(stdout, stderr, exitCode) {
+    const rows = exitCode === 0 ? parseAgenda(stdout) : null
+    if (rows)
+        return { rows: rows, failure: null }
+    const found = failure(`${stdout}\n${stderr}`, exitCode)
+    const shown = exitCode === 0 && !found.setup ? { setup: false, text: "Unexpected gcalcli output" } : found
+    return { rows: null, failure: Object.assign(shown, { exitCode: exitCode }) }
 }
 
 const enWords = [
@@ -69,13 +80,19 @@ const ruMonths = ["январ", "феврал", "март", "апрел", "ма"
 const ruNums = { "один": 1, "одну": 1, "два": 2, "две": 2, "три": 3, "четыре": 4, "пять": 5 }
 const ruEdge = "(^|[^а-яёa-z0-9])"
 const ruEnd = "(?![а-яёa-z0-9])"
+/// The date, null when the day does not exist in that month ("31 февраля" must not roll over)
+function realDate(year, month, date) {
+    const d = new Date(year, month, date)
+    return d.getMonth() === month && d.getDate() === date ? d : null
+}
+
 // Google quick-add reads only English, so Russian day phrases become a date
 const ruPhrases = [
     [/(сегодня)/, (m, now) => now],
     [/(послезавтра)/, (m, now) => Cal.addDays(now, 2)],
     [/(завтра)/, (m, now) => Cal.addDays(now, 1)],
     [/через\s+(\d+|один|одну|два|две|три|четыре|пять)?\s*(день|дня|дней|неделю|недели|недель)/, (m, now) => {
-        const n = m[1] ? +m[1] || ruNums[m[1]] : 1
+        const n = m[1] ? /^\d+$/.test(m[1]) ? +m[1] : ruNums[m[1]] : 1
         return Cal.addDays(now, m[2].startsWith("нед") ? 7 * n : n)
     }],
     [/на\s+следующей\s+неделе/, (m, now) => Cal.addDays(now, 7)],
@@ -86,10 +103,11 @@ const ruPhrases = [
         return Cal.addDays(now, (wd - now.getDay() + 7) % 7)
     }],
     [/(\d{1,2})\s+(январ[яь]|феврал[яь]|марта?|апрел[яь]|ма[яй]|июн[яь]|июл[яь]|августа?|сентябр[яь]|октябр[яь]|ноябр[яь]|декабр[яь])(?:\s+(\d{4}))?/, (m, now) => {
-        const day = new Date(m[3] ? +m[3] : now.getFullYear(), ruMonths.findIndex(p => m[2].startsWith(p)), +m[1])
-        return !m[3] && day < new Date(now.getFullYear(), now.getMonth(), now.getDate()) ? new Date(day.getFullYear() + 1, day.getMonth(), day.getDate()) : day
+        const month = ruMonths.findIndex(p => m[2].startsWith(p))
+        const day = realDate(m[3] ? +m[3] : now.getFullYear(), month, +m[1])
+        return day && !m[3] && day < new Date(now.getFullYear(), now.getMonth(), now.getDate()) ? realDate(day.getFullYear() + 1, month, +m[1]) : day
     }],
-    [/(\d{1,2})\.(\d{1,2})\.(\d{4})/, m => new Date(+m[3], +m[2] - 1, +m[1])]
+    [/(\d{1,2})\.(\d{1,2})\.(\d{4})/, m => realDate(+m[3], +m[2] - 1, +m[1])]
 ].map(([re, resolve]) => [new RegExp(ruEdge + re.source + ruEnd), resolve])
 
 /// Text sent to `gcalcli quick` and the day it lands on, null when Google reads the day from the text
@@ -101,6 +119,8 @@ function quickPlan(text, day, now) {
         if (!m)
             continue
         const resolved = resolve([m[0], ...m.slice(2)], now)
+        if (!resolved)
+            continue
         const from = m.index + m[1].length
         const named = new Date(resolved.getFullYear(), resolved.getMonth(), resolved.getDate())
         return { text: `${t.slice(0, from)}${onEnglishDate(named)}${t.slice(m.index + m[0].length)}`, day: named }

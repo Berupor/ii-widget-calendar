@@ -53,6 +53,7 @@ Item {
         id: view
         anchors.fill: parent
         surface: true
+        weekStart: 1
         now: root.now
         days: root.days
         status: "ready"
@@ -66,6 +67,7 @@ Item {
         visible: false
         width: 354
         height: 350
+        weekStart: 1
         now: new Date(2026, 9, 31, 23, 59)
         days: root.days
         status: "ready"
@@ -92,8 +94,57 @@ Item {
         }
     }
 
+    // Answers EventsState from its provider the way a finished fetch does, then puts the state back
+    function driveFetches() {
+        const s = EventsState;
+        const p = s.provider;
+        const inside = "2026-09-28 2026-11-09";
+        const wide = Cal.fetchWindow(inside, 60);
+        const far = "2027-03-01 2027-04-12";
+        const failure = { setup: false, text: "Can't reach Google Calendar", exitCode: 1 };
+        const wipe = () => {
+            s.rows = [];
+            s.fetchedWindow = "";
+            s.fetchingWindow = "";
+            s.pending = false;
+            s.needsSetup = false;
+            s.failureText = "";
+            s.range = "";
+        };
+        const out = {};
+        wipe();
+        s.range = inside;
+        p.fetched(wide, null, failure);
+        out.firstFail = `${s.status} [${s.fetchedWindow}] fetching=${s.fetchingWindow !== ""} fresh=${s.isFresh()}`;
+        s.fetchingWindow = wide;
+        out.retry = s.status;
+        s.fetchingWindow = "";
+        p.fetched(wide, Gcalcli.parseAgenda(`${root.head}\n${root.row("2020-01-01", "", "2030-01-01", "", "Decade")}`), null);
+        out.ok = `${s.status} ${s.fetchedWindow} days=${Object.keys(s.days).length}`;
+        s.range = far;
+        out.farUncovered = `${s.status} fresh=${s.isFresh()}`;
+        p.fetched(Cal.fetchWindow(far, 60), null, failure);
+        out.farFail = `${s.status} ${s.fetchedWindow} fetching=${s.fetchingWindow !== ""} fresh=${s.isFresh()}`;
+        s.range = inside;
+        p.fetched(wide, null, { setup: true, text: "Run gcalcli init in a terminal", exitCode: 1 });
+        out.setup = `${s.status} rows=${s.rows.length}`;
+        wipe();
+        s.adding = true;
+        s.addError = "Google Calendar is down (503), try again";
+        s.pending = true;
+        s.providerNameChanged();
+        out.swap = `${s.adding} [${s.addError}] ${s.pending}`;
+        return out;
+    }
+
     function checks() {
+        const fetched = root.driveFetches();
         const day = new Date(2026, 10, 3);
+        const sundayOct = new Date(2026, 9, 1);
+        const decade = Gcalcli.parseAgenda(`${root.head}\n${root.row("2020-01-01", "", "2030-01-01", "", "Decade")}\n${root.row("2026-10-20", "09:00", "2026-10-20", "10:00", "Before")}\n${root.row("2026-10-20", "", "2026-10-28", "", "Straddles start")}\n${root.row("2026-12-05", "", "2026-12-20", "", "Straddles end")}\n${root.row("2026-12-09", "", "2026-12-10", "", "After")}`);
+        const windowed = Cal.byDay(decade, "", "2026-10-26 2026-12-07");
+        const sameId = Gcalcli.parseAgenda(`${root.head}\n${root.row("2026-10-05", "09:30", "2026-10-05", "10:00", "Car service", false, "Work")}\n${root.row("2026-10-05", "09:30", "2026-10-05", "10:00", "Car service", false, "Family")}`);
+        const titled = t => Gcalcli.agendaResult(`${root.head}\n${root.row("2026-10-05", "09:30", "2026-10-05", "10:00", t)}`, "", 0);
         const appended = t => Gcalcli.quickPlan(t, day, root.now).text === `${t} on November 3 2026`;
         const kept = t => {
             const plan = Gcalcli.quickPlan(t, day, root.now);
@@ -236,6 +287,96 @@ Item {
                 "name": "an http error names its code",
                 "got": [503, 400].map(c => Gcalcli.shortError(`googleapiclient.errors.HttpError: <HttpError ${c} when requesting https://www.googleapis.com/calendar/v3/calendars/x/events/quickAdd returned "Backend Error">`, 1)).join("|"),
                 "want": "Google Calendar is down (503), try again|Google Calendar refused it (400)"
+            },
+            {
+                "name": "a title naming RefreshError or invalid_grant is an event, not a sign-in failure",
+                "got": ["RefreshError postmortem", "invalid_grant outage"].map(t => { const r = titled(t); return `${r.failure} ${r.rows.length} ${r.rows[0].title}`; }).join("|"),
+                "want": "null 1 RefreshError postmortem|null 1 invalid_grant outage"
+            },
+            {
+                "name": "a run without a header is unexpected output, a token error still sends to setup",
+                "got": [Gcalcli.agendaResult("nothing useful\n", "", 0), Gcalcli.agendaResult("", "google.auth.exceptions.RefreshError: invalid_grant", 1), Gcalcli.agendaResult("", "", 127)].map(r => `${r.rows} ${r.failure.setup} ${r.failure.text} ${r.failure.exitCode}`).join("|"),
+                "want": "null false Unexpected gcalcli output 0|null true Run gcalcli init in a terminal 1|null true Install gcalcli 127"
+            },
+            {
+                "name": "a failed fetch does not count as fetched and reads error, not endless loading",
+                "got": fetched.firstFail,
+                "want": "error [] fetching=false fresh=false"
+            },
+            {
+                "name": "a retry after a failure reads as loading",
+                "got": fetched.retry,
+                "want": "loading"
+            },
+            {
+                "name": "a successful fetch is ready and keeps only the days of its window",
+                "got": fetched.ok,
+                "want": "ready 2026-07-30 2027-01-08 days=163"
+            },
+            {
+                "name": "a range nothing was fetched for reads loading until the fetch is started",
+                "got": fetched.farUncovered,
+                "want": "loading fresh=false"
+            },
+            {
+                "name": "a failure of a new range keeps the old window, reads error and is not fresh, so no refetch loop and navigating refetches",
+                "got": fetched.farFail,
+                "want": "error 2026-07-30 2027-01-08 fetching=false fresh=false"
+            },
+            {
+                "name": "a sign-in failure marks its window fetched and clears the rows",
+                "got": fetched.setup,
+                "want": "setup rows=0"
+            },
+            {
+                "name": "a new provider drops the add in flight and the pending refetch",
+                "got": fetched.swap,
+                "want": "false [] false"
+            },
+            {
+                "name": "the same event id in two calendars gives two keys",
+                "got": sameId.map(ev => ev.key).join("|"),
+                "want": "Work/ev202610050930|Family/ev202610050930"
+            },
+            {
+                "name": "a row without an id still gets a key from its date and title",
+                "got": Gcalcli.parseAgenda("start_date\tstart_time\tend_date\tend_time\ttitle\tcalendar\n2026-10-05\t09:30\t2026-10-05\t10:00\tCar service\tWork")[0].key,
+                "want": "2026-10-05 09:30 Car service"
+            },
+            {
+                "name": "a newline in a title reads as a space, a tab stays",
+                "got": ["Standup\\nroom 5", "Standup\\n\\nroom 5", "Coffee\\n\tchat"].map(t => titled(t).rows[0].title).join("|"),
+                "want": "Standup room 5|Standup room 5|Coffee \tchat"
+            },
+            {
+                "name": "a Russian number of days can be 0 or a word, and lands on a real day",
+                "got": ["Отчет через 0 дней", "Отчет через 0 недель", "Отчет через два дня", "Отчет через 2 недели", "Отчет через неделю"].map(t => Gcalcli.quickPlan(t, day, root.now).text).join("|"),
+                "want": ["Отчет on October 31 2026", "Отчет on October 31 2026", "Отчет on November 2 2026", "Отчет on November 14 2026", "Отчет on November 7 2026"].join("|")
+            },
+            {
+                "name": "a Russian date that does not exist is no day phrase and does not roll over",
+                "got": ["Сдать 31 февраля", "Сдать 31 ноября 2026", "Сдать 31.02.2026", "Сдать 10.13.2026", "Сдать 0 января"].map(t => Gcalcli.quickPlan(t, day, root.now).text).join("|"),
+                "want": ["Сдать 31 февраля", "Сдать 31 ноября 2026", "Сдать 31.02.2026", "Сдать 10.13.2026", "Сдать 0 января"].map(t => `${t} on November 3 2026`).join("|")
+            },
+            {
+                "name": "a 29 February is a day in a leap year",
+                "got": Gcalcli.quickPlan("Сдать 29 февраля 2028", day, root.now).text,
+                "want": "Сдать on February 29 2028"
+            },
+            {
+                "name": "a Sunday week start begins the grid on a Sunday and moves the picked day's row",
+                "got": [Cal.toIso(Cal.gridStart(sundayOct)), Cal.toIso(Cal.gridStart(sundayOct, 0)), Cal.toIso(Cal.gridStart(new Date(2026, 10, 1), 0)), Cal.toIso(Cal.gridStart(new Date(2026, 10, 1))), Cal.monthCells(sundayOct, root.now, 0)[0].date.getDay(), Cal.rowOf(sundayOct, new Date(2026, 9, 4)), Cal.rowOf(sundayOct, new Date(2026, 9, 4), 0)].join("|"),
+                "want": "2026-09-28|2026-09-27|2026-11-01|2026-10-26|0|0|1"
+            },
+            {
+                "name": "the weekday header starts at the week start",
+                "got": [Cal.weekHeader(), Cal.weekHeader(1), Cal.weekHeader(0), Cal.weekHeader(6)].map(h => h.join("")).join("|"),
+                "want": "MoTuWeThFrSaSu|MoTuWeThFrSaSu|SuMoTuWeThFrSa|SaSuMoTuWeThFr"
+            },
+            {
+                "name": "a window keeps a multi-year event to the days inside it, and drops what ends before it or starts after",
+                "got": `${Object.keys(windowed).length} ${Object.keys(windowed).sort()[0]} ${Object.keys(windowed).sort().pop()} ${windowed["2026-10-26"].map(e => e.title).sort().join("+")} ${windowed["2026-12-07"].map(e => e.title).sort().join("+")} ${windowed["2026-10-20"] ?? "none"} ${windowed["2026-12-09"] ?? "none"}`,
+                "want": "43 2026-10-26 2026-12-07 Decade+Straddles start Decade+Straddles end none none"
             }
         ];
     }

@@ -24,8 +24,8 @@ Scope {
         return Gcalcli.quickPlan(text, day, now);
     }
 
-    function add(text, day, calendar) {
-        root.addText = Gcalcli.quickPlan(text, day, new Date()).text;
+    function add(text, day, now, calendar) {
+        root.addText = root.plan(text, day, now).text;
         const target = calendar || root.ownCalendar;
         if (target)
             root.runAdd(target);
@@ -52,12 +52,8 @@ Scope {
             id: fetchErr
         }
         onExited: exitCode => {
-            const output = `${fetchOut.text}\n${fetchErr.text}`;
-            let failure = Gcalcli.failure(output, exitCode);
-            const rows = exitCode === 0 && !failure.setup ? Gcalcli.parseAgenda(fetchOut.text) : null;
-            if (exitCode === 0 && !failure.setup && !rows)
-                failure = { setup: false, text: "Unexpected gcalcli output" };
-            root.fetched(fetchProc.window, rows, rows ? null : Object.assign(failure, { exitCode: exitCode }));
+            const result = Gcalcli.agendaResult(fetchOut.text, fetchErr.text, exitCode);
+            root.fetched(fetchProc.window, result.rows, result.failure);
         }
     }
 
