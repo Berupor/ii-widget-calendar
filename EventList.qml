@@ -2,7 +2,7 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
-import "gcal.js" as Gcal
+import "calendar.js" as Cal
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -16,12 +16,12 @@ Item {
     property string status: "ready"
     property string errorText: ""
     property real listBottomPadding: 0
-    readonly property var items: Gcal.dayItems(days, day)
-    readonly property int nowIndex: Gcal.nowIndex(items, day, now)
-    readonly property var placeholder: root.status === "noauth" ? {
+    readonly property var items: Cal.dayItems(days, day)
+    readonly property int nowIndex: Cal.nowIndex(items, day, now)
+    readonly property var placeholder: root.status === "setup" ? {
             "icon": "no_accounts",
-            "title": Translation.tr("Not signed in"),
-            "hint": Translation.tr("Run gcalcli init in a terminal")
+            "title": Translation.tr("Not connected"),
+            "hint": root.errorText
         } : root.status === "error" ? {
             "icon": "cloud_off",
             "title": Translation.tr("Couldn't load events"),
@@ -59,7 +59,7 @@ Item {
             }
             EventRow {
                 modelData: entry.modelData
-                past: Gcal.isPast(entry.modelData, root.day, root.now)
+                past: Cal.isPast(entry.modelData, root.day, root.now)
                 width: parent.width
             }
         }
@@ -99,7 +99,7 @@ Item {
         property var modelData
         property bool past: false
         readonly property string timeText: modelData?.allDay ? Translation.tr("All day") : `${modelData?.startText ?? ""} - ${modelData?.endText ?? ""}`
-        readonly property string callText: modelData?.meet ? Translation.tr("Google Meet") : modelData?.call ? Translation.tr("Video call") : ""
+        readonly property string callText: modelData?.call ? Translation.tr(modelData.call) : ""
         implicitHeight: rowLayout.implicitHeight + 6 * 2
         padding: 0
         buttonRadius: Appearance.rounding.small

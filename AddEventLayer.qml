@@ -1,7 +1,7 @@
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import "gcal.js" as Gcal
+import "calendar.js" as Cal
 import QtQuick
 import QtQuick.Layouts
 
@@ -10,14 +10,14 @@ Item {
     id: root
     property var day: new Date()
     property var now: new Date()
-    readonly property var plan: Gcal.quickPlan(eventInput.text, root.day, root.now)
-    readonly property string time: Gcal.quickTime(eventInput.text)
+    readonly property var plan: EventsState.plan(eventInput.text, root.day, root.now)
+    readonly property string time: Cal.quickTime(eventInput.text)
     readonly property string dayLabel: root.plan.day ? root.plan.day.toLocaleDateString(Qt.locale(), "ddd, d MMM") : ""
-    readonly property bool adding: GcalState.adding
-    readonly property string addError: GcalState.addError
+    readonly property bool adding: EventsState.adding
+    readonly property string addError: EventsState.addError
 
     Connections {
-        target: GcalState
+        target: EventsState
         function onAdded() {
             root.open = false;
         }
@@ -68,7 +68,7 @@ Item {
 
         onVisibleChanged: {
             if (visible)
-                GcalState.addError = "";
+                EventsState.addError = "";
             else
                 eventInput.text = "";
         }
@@ -103,7 +103,7 @@ Item {
 
             function addEvent() {
                 if (eventInput.text.trim().length > 0 && !root.adding)
-                    GcalState.add(eventInput.text, root.day);
+                    EventsState.add(eventInput.text, root.day);
             }
 
             ColumnLayout {

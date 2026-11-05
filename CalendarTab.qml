@@ -1,6 +1,6 @@
 import qs.modules.common
 import qs.modules.common.widgets
-import "gcal.js" as Gcal
+import "calendar.js" as Cal
 import QtQuick
 import QtQuick.Layouts
 
@@ -8,11 +8,12 @@ import QtQuick.Layouts
 Item {
     id: root
 
-    // Writable, so a demo scene draws any state without gcalcli
-    property var days: GcalState.days
-    property var now: GcalState.now
-    property string status: GcalState.status
-    property string errorText: GcalState.errorText
+    // Writable, so a demo scene draws any state without a provider
+    property var days: EventsState.days
+    property var now: EventsState.now
+    property string status: EventsState.status
+    property string errorText: EventsState.errorText
+    property bool canAdd: EventsState.canAdd
     property bool surface: false
 
     property string selected: ""
@@ -20,20 +21,20 @@ Item {
     property alias addText: addLayer.text
     // First of the month on screen, null follows today
     property var viewMonth: null
-    readonly property var selectedDate: Gcal.fromIso(selected)
+    readonly property var selectedDate: Cal.fromIso(selected)
     readonly property bool weekMode: selectedDate !== null
-    readonly property var viewingDate: viewMonth ?? Gcal.monthOf(now)
-    readonly property bool currentMonth: Gcal.sameDay(viewingDate, Gcal.monthOf(now))
-    onSelectedDateChanged: if (selectedDate) viewMonth = Gcal.monthOf(selectedDate)
+    readonly property var viewingDate: viewMonth ?? Cal.monthOf(now)
+    readonly property bool currentMonth: Cal.sameDay(viewingDate, Cal.monthOf(now))
+    onSelectedDateChanged: if (selectedDate) viewMonth = Cal.monthOf(selectedDate)
     onViewingDateChanged: {
-        const start = Gcal.gridStart(viewingDate);
-        GcalState.want(start, Gcal.addDays(start, 42));
+        const start = Cal.gridStart(viewingDate);
+        EventsState.want(start, Cal.addDays(start, 42));
     }
     Component.onCompleted: {
-        GcalState.viewers++;
+        EventsState.viewers++;
         viewingDateChanged();
     }
-    Component.onDestruction: GcalState.viewers--
+    Component.onDestruction: EventsState.viewers--
 
     focus: true
     Keys.onPressed: event => {
@@ -44,14 +45,14 @@ Item {
     }
 
     function select(date) {
-        selected = Gcal.toIso(date);
+        selected = Cal.toIso(date);
     }
 
     function step(delta) {
         if (root.weekMode)
-            root.select(Gcal.addDays(root.selectedDate, 7 * delta));
+            root.select(Cal.addDays(root.selectedDate, 7 * delta));
         else
-            root.viewMonth = Gcal.addMonths(root.viewingDate, delta);
+            root.viewMonth = Cal.addMonths(root.viewingDate, delta);
     }
 
     Rectangle {
@@ -121,6 +122,6 @@ Item {
         anchors.fill: parent
         day: root.selectedDate ?? root.now
         now: root.now
-        fabShown: root.weekMode && root.status !== "noauth"
+        fabShown: root.weekMode && root.canAdd && root.status !== "setup"
     }
 }

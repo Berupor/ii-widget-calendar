@@ -1,7 +1,7 @@
 # README shots, rendered by the extensions fork:
-#   tests/widget-shots.sh -x ~/.config/illogical-impulse/widgets/gcal
+#   tests/widget-shots.sh -x ~/.config/illogical-impulse/widgets/calendar
 # Stub events from the demo scene, so no real calendar ends up in docs/.
 -f demo/DemoCalendar.qml -n month -g 354x350 -H sidebar
 -f demo/DemoCalendar.qml -n day -g 354x350 -H sidebar -p selected=2026-10-31
 -f demo/DemoCalendar.qml -n add -g 354x350 -H sidebar -p selected=2026-11-04 -p addOpen=true
--f demo/DemoCalendar.qml -n noauth -g 354x350 -H sidebar -p selected=2026-11-04 -p status=noauth
+-f demo/DemoCalendar.qml -n setup -g 354x350 -H sidebar -p selected=2026-11-04 -p status=setup

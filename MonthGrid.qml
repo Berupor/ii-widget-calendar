@@ -1,7 +1,7 @@
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import "gcal.js" as Gcal
+import "calendar.js" as Cal
 import QtQuick
 import QtQuick.Layouts
 
@@ -12,12 +12,12 @@ ColumnLayout {
     property string status: "ready"
     property string errorText: ""
     property bool currentMonth: true
-    property var viewingDate: Gcal.monthOf(now)
+    property var viewingDate: Cal.monthOf(now)
     property var selectedDate: null
     property bool weekMode: false
-    readonly property var cells: Gcal.monthCells(viewingDate, now)
-    readonly property int selectedRow: Gcal.rowOf(viewingDate, selectedDate)
-    readonly property string monthKey: Gcal.toIso(viewingDate)
+    readonly property var cells: Cal.monthCells(viewingDate, now)
+    readonly property int selectedRow: Cal.rowOf(viewingDate, selectedDate)
+    readonly property string monthKey: Cal.toIso(viewingDate)
     property string issue: status
     property real monthFade: 1
     signal daySelected(var date)
@@ -77,9 +77,9 @@ ColumnLayout {
             colBackgroundHover: root.issue === "loading" ? Appearance.colors.colLayer2Hover : Appearance.colors.colErrorContainerHover
             colRipple: root.issue === "loading" ? Appearance.colors.colLayer2Active : Appearance.colors.colErrorContainerActive
             tooltipText: root.issue === "loading" ? Translation.tr("Loading events")
-                : root.issue === "noauth" ? Translation.tr("Not signed in: run gcalcli init in a terminal")
+                : root.issue === "setup" ? Translation.tr("Not connected: %1").arg(root.errorText)
                 : `${root.errorText}. ${Translation.tr("Click to retry")}`
-            downAction: () => GcalState.refresh()
+            downAction: () => EventsState.refresh()
             Behavior on opacity {
                 animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
             }
@@ -87,7 +87,7 @@ ColumnLayout {
                 animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
             }
             contentItem: MaterialSymbol {
-                text: root.issue === "loading" ? "sync" : root.issue === "noauth" ? "no_accounts" : "cloud_off"
+                text: root.issue === "loading" ? "sync" : root.issue === "setup" ? "no_accounts" : "cloud_off"
                 iconSize: Appearance.font.pixelSize.larger
                 horizontalAlignment: Text.AlignHCenter
                 color: root.issue === "loading" ? Appearance.colors.colOnLayer1 : Appearance.colors.colOnErrorContainer
@@ -128,7 +128,7 @@ ColumnLayout {
         Layout.topMargin: 5
         spacing: 5
         Repeater {
-            model: Gcal.weekDays
+            model: Cal.weekDays
             delegate: DayButton {
                 required property var modelData
                 day: Translation.tr(modelData)
@@ -171,7 +171,7 @@ ColumnLayout {
                         day: cell.day
                         isToday: cell.today && active ? 1 : active ? 0 : -1
                         hasEvents: (root.days[cell.iso]?.length ?? 0) > 0
-                        selected: Gcal.sameDay(cell.date, root.selectedDate)
+                        selected: Cal.sameDay(cell.date, root.selectedDate)
                         onClicked: root.daySelected(cell.date)
                     }
                 }

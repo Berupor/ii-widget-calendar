@@ -1,20 +1,27 @@
 import qs.modules.widgets
 import qs.services
 
-/** Google Calendar events in the sidebar Calendar tab, through gcalcli. */
+/** Calendar events in the sidebar Calendar tab, from the provider picked in options. */
 WidgetManifest {
-    widgetId: "gcal"
-    name: Translation.tr("Google Calendar")
-    description: Translation.tr("Events in the Calendar tab of the right sidebar, via gcalcli")
+    widgetId: "calendar"
+    name: Translation.tr("Calendar")
+    description: Translation.tr("Events in the Calendar tab of the right sidebar, from gcalcli (Google Calendar)")
     icon: "event"
-    version: "1.0"
+    version: "2.0"
     author: "Berupor"
     minShellVersion: "1.6"
-    dependencies: ["gcalcli"]
     slots: ({
-        "calendarView": "GcalView.qml"
+        "calendarView": "CalendarTab.qml"
     })
     options: [
+        {
+            "key": "provider",
+            "type": "textField",
+            "icon": "cloud_sync",
+            "label": Translation.tr("Provider"),
+            "placeholder": "gcalcli",
+            "default": "gcalcli"
+        },
         {
             "key": "hiddenCalendars",
             "type": "textField",

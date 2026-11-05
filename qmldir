@@ -1,1 +1,1 @@
-singleton GcalState 1.0 GcalState.qml
+singleton EventsState 1.0 EventsState.qml

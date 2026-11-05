@@ -1,80 +1,5 @@
 .pragma library
-
-const weekDays = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
-const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-
-function sameDay(a, b) {
-    return !!a && !!b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-}
-
-function addDays(day, n) {
-    return new Date(day.getFullYear(), day.getMonth(), day.getDate() + n)
-}
-
-function pad(n) {
-    return n < 10 ? `0${n}` : `${n}`
-}
-
-function toIso(day) {
-    return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`
-}
-
-function fromIso(iso) {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? "")
-    return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null
-}
-
-function monthOf(day) {
-    return new Date(day.getFullYear(), day.getMonth(), 1)
-}
-
-function addMonths(view, n) {
-    return new Date(view.getFullYear(), view.getMonth() + n, 1)
-}
-
-/// First cell of the 6-week grid, a Monday
-function gridStart(view) {
-    const first = new Date(view.getFullYear(), view.getMonth(), 1)
-    return addDays(first, -((first.getDay() + 6) % 7))
-}
-
-function monthCells(view, now) {
-    const start = gridStart(view)
-    const cells = []
-    for (let i = 0; i < 42; i++) {
-        const d = addDays(start, i)
-        cells.push({ date: d, iso: toIso(d), day: d.getDate(), inMonth: d.getMonth() === view.getMonth(), today: sameDay(d, now) })
-    }
-    return cells
-}
-
-function rowOf(view, day) {
-    if (!day)
-        return -1
-    const idx = Math.round((day - gridStart(view)) / 86400000)
-    return idx < 0 || idx >= 42 ? -1 : Math.floor(idx / 7)
-}
-
-/// "start end" iso days of a fetch around a view range, `margin` days further each way
-function fetchWindow(range, margin) {
-    const [start, end] = range.split(" ").map(fromIso)
-    return `${toIso(addDays(start, -margin))} ${toIso(addDays(end, margin))}`
-}
-
-/// Whether the "start end" iso range `outer` holds `inner`
-function covers(outer, inner) {
-    const [outerStart, outerEnd] = outer.split(" ")
-    const [innerStart, innerEnd] = inner.split(" ")
-    return outerStart <= innerStart && innerEnd <= outerEnd
-}
-
-function at(date, time) {
-    const d = fromIso(date)
-    if (!d)
-        return null
-    const [h, m] = (time || "00:00").split(":").map(Number)
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m)
-}
+.import "../calendar.js" as Cal
 
 const agendaDetails = ["id", "url", "conference", "calendar"]
 
@@ -97,15 +22,14 @@ function parseAgenda(text) {
             return v.replace(/\\n/g, "\n")
         }
         const allDay = get("start_time") === ""
-        const start = at(get("start_date"), get("start_time"))
-        const end = at(get("end_date"), get("end_time")) ?? start
+        const start = Cal.at(get("start_date"), get("start_time"))
+        const end = Cal.at(get("end_date"), get("end_time")) ?? start
         return {
             key: get("id") || `${get("start_date")} ${get("start_time")} ${get("title")}`,
             title: get("title"),
             calendar: get("calendar"),
             link: get("html_link"),
-            meet: get("hangout_link") !== "",
-            call: get("conference_uri") !== "",
+            call: get("hangout_link") !== "" ? "Google Meet" : get("conference_uri") !== "" ? "Video call" : "",
             allDay: allDay,
             startText: get("start_time"),
             endText: get("end_time"),
@@ -113,44 +37,6 @@ function parseAgenda(text) {
             end: end ? end.getTime() : 0
         }
     }).filter(ev => ev && ev.start > 0)
-}
-
-/// Events keyed by iso day, multi-day ones on every day they touch; all-day first
-function byDay(rows, hidden) {
-    const skip = (hidden ?? "").split(",").map(s => s.trim().toLowerCase()).filter(s => s.length > 0)
-    const days = {}
-    for (const ev of rows ?? []) {
-        if (skip.includes(ev.calendar.toLowerCase()))
-            continue
-        let day = new Date(ev.start)
-        day = new Date(day.getFullYear(), day.getMonth(), day.getDate())
-        do {
-            const iso = toIso(day)
-            ;(days[iso] = days[iso] ?? []).push(ev)
-            day = addDays(day, 1)
-        } while (day.getTime() < ev.end)
-    }
-    for (const iso in days)
-        days[iso].sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start) || a.title.localeCompare(b.title))
-    return days
-}
-
-function dayItems(days, day) {
-    return day ? days?.[toIso(day)] ?? [] : []
-}
-
-/// An all-day event is past once the shown day ends
-function isPast(ev, day, now) {
-    const dayEnd = addDays(day, 1).getTime()
-    return (ev.allDay ? Math.min(ev.end, dayEnd) : ev.end) <= now.getTime()
-}
-
-/// Where today's now line goes: before the first unfinished timed event, -1 for none
-function nowIndex(list, day, now) {
-    if (!sameDay(day, now) || !list.some(ev => !ev.allDay && isPast(ev, day, now)))
-        return -1
-    const idx = list.findIndex(ev => !ev.allDay && !isPast(ev, day, now))
-    return idx < 0 ? list.length : idx
 }
 
 const enWords = [
@@ -175,7 +61,7 @@ function namesDay(text) {
 
 /// Google answers 503 to a 24h time followed straight by a date ("19:00 December 20 2026"), "on" avoids it
 function onEnglishDate(day) {
-    return `on ${monthNames[day.getMonth()]} ${day.getDate()} ${day.getFullYear()}`
+    return `on ${Cal.monthNames[day.getMonth()]} ${day.getDate()} ${day.getFullYear()}`
 }
 
 const ruWeekdays = ["воскресенье", "понедельник", "вторник", "среду", "четверг", "пятницу", "субботу"]
@@ -186,18 +72,18 @@ const ruEnd = "(?![а-яёa-z0-9])"
 // Google quick-add reads only English, so Russian day phrases become a date
 const ruPhrases = [
     [/(сегодня)/, (m, now) => now],
-    [/(послезавтра)/, (m, now) => addDays(now, 2)],
-    [/(завтра)/, (m, now) => addDays(now, 1)],
+    [/(послезавтра)/, (m, now) => Cal.addDays(now, 2)],
+    [/(завтра)/, (m, now) => Cal.addDays(now, 1)],
     [/через\s+(\d+|один|одну|два|две|три|четыре|пять)?\s*(день|дня|дней|неделю|недели|недель)/, (m, now) => {
         const n = m[1] ? +m[1] || ruNums[m[1]] : 1
-        return addDays(now, m[2].startsWith("нед") ? 7 * n : n)
+        return Cal.addDays(now, m[2].startsWith("нед") ? 7 * n : n)
     }],
-    [/на\s+следующей\s+неделе/, (m, now) => addDays(now, 7)],
+    [/на\s+следующей\s+неделе/, (m, now) => Cal.addDays(now, 7)],
     [/во?\s+(следующ(?:ий|ую|ее)\s+|эт(?:от|у|о)\s+)?(воскресенье|понедельник|вторник|среду|четверг|пятницу|субботу)/, (m, now) => {
         const wd = ruWeekdays.indexOf(m[2])
         if (m[1]?.startsWith("след"))
-            return addDays(now, 7 - (now.getDay() + 6) % 7 + (wd + 6) % 7)
-        return addDays(now, (wd - now.getDay() + 7) % 7)
+            return Cal.addDays(now, 7 - (now.getDay() + 6) % 7 + (wd + 6) % 7)
+        return Cal.addDays(now, (wd - now.getDay() + 7) % 7)
     }],
     [/(\d{1,2})\s+(январ[яь]|феврал[яь]|марта?|апрел[яь]|ма[яй]|июн[яь]|июл[яь]|августа?|сентябр[яь]|октябр[яь]|ноябр[яь]|декабр[яь])(?:\s+(\d{4}))?/, (m, now) => {
         const day = new Date(m[3] ? +m[3] : now.getFullYear(), ruMonths.findIndex(p => m[2].startsWith(p)), +m[1])
@@ -224,23 +110,6 @@ function quickPlan(text, day, now) {
     return { text: `${t} ${onEnglishDate(day)}`, day: day }
 }
 
-/// "HH:MM" of the first time in quick-add text ("13:00", "1:30pm", "5 pm"), "" when it has none
-function quickTime(text) {
-    const clock = /(?:^|[^\d:.])(\d{1,2})(?::([0-5]\d))?(?:\s*([ap])\.?m\b\.?)?(?![\d:])/gi
-    let m
-    while ((m = clock.exec(text ?? "")) !== null) {
-        const [, h, min, meridiem] = m
-        if (!min && !meridiem)
-            continue
-        const hour = +h
-        if (meridiem ? hour < 1 || hour > 12 : hour > 23)
-            continue
-        const h24 = meridiem ? hour % 12 + (meridiem.toLowerCase() === "p" ? 12 : 0) : hour
-        return `${String(h24).padStart(2, "0")}:${min ?? "00"}`
-    }
-    return ""
-}
-
 /// Short message for a failed gcalcli run
 function shortError(output, exitCode) {
     const out = output ?? ""
@@ -259,6 +128,11 @@ function shortError(output, exitCode) {
     return last ? last.trim().slice(0, 70) : `gcalcli failed (${exitCode})`
 }
 
-function needsAuth(output) {
-    return /Not yet authenticated|invalid_grant|RefreshError/.test(output ?? "")
+/// `setup` when gcalcli is missing or not signed in: events are cleared, the hint says what to run
+function failure(output, exitCode) {
+    if (exitCode === 127)
+        return { setup: true, text: "Install gcalcli" }
+    if (/Not yet authenticated|invalid_grant|RefreshError/.test(output ?? ""))
+        return { setup: true, text: "Run gcalcli init in a terminal" }
+    return { setup: false, text: shortError(output, exitCode) }
 }

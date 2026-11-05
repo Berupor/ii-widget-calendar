@@ -1,6 +1,7 @@
 //@ probe -g 354x350 -H sidebar
 import ".."
-import "../gcal.js" as Gcal
+import "../calendar.js" as Cal
+import "../providers/gcalcli.js" as Gcalcli
 import QtQuick
 
 /** The view on stub events at a fixed time, and the date logic behind adding. */
@@ -31,9 +32,9 @@ Item {
         row("2026-11-05", "23:30", "2026-11-06", "00:30", "Night call"),
         row("2026-11-09", "", "2026-11-12", "", "Conference")
     ].join("\n")
-    readonly property var rows: Gcal.parseAgenda(tsv)
-    readonly property var days: Gcal.byDay(rows, "")
-    readonly property var today: Gcal.dayItems(days, now)
+    readonly property var rows: Gcalcli.parseAgenda(tsv)
+    readonly property var days: Cal.byDay(rows, "")
+    readonly property var today: Cal.dayItems(days, now)
 
     function row(sd, st, ed, et, title, meet, calendar) {
         const id = `ev${sd.replace(/-/g, "")}${st.replace(":", "")}`;
@@ -41,25 +42,26 @@ Item {
     }
 
     function lines(list) {
-        const at = Gcal.nowIndex(list, root.now, root.now);
+        const at = Cal.nowIndex(list, root.now, root.now);
         const titles = list.map(e => e.title);
         if (at >= 0)
             titles.splice(at, 0, "now");
         return titles.join(",");
     }
 
-    GcalView {
+    CalendarTab {
         id: view
         anchors.fill: parent
         surface: true
         now: root.now
         days: root.days
         status: "ready"
-        errorText: ""
+        errorText: status === "setup" ? "Run gcalcli init in a terminal" : ""
+        canAdd: true
     }
 
     // Week mode open on an old day while the clock crosses into the next month
-    GcalView {
+    CalendarTab {
         id: midnight
         visible: false
         width: 354
@@ -86,18 +88,18 @@ Item {
         interval: 300
         onTriggered: {
             refetched.firstRow = refetched.children[0].itemAtIndex(0);
-            refetched.days = Gcal.byDay(Gcal.parseAgenda(root.tsv.replace("\tHalloween\t", "\tHalloween party\t")), "");
+            refetched.days = Cal.byDay(Gcalcli.parseAgenda(root.tsv.replace("\tHalloween\t", "\tHalloween party\t")), "");
         }
     }
 
     function checks() {
         const day = new Date(2026, 10, 3);
-        const appended = t => Gcal.quickPlan(t, day, root.now).text === `${t} on November 3 2026`;
+        const appended = t => Gcalcli.quickPlan(t, day, root.now).text === `${t} on November 3 2026`;
         const kept = t => {
-            const plan = Gcal.quickPlan(t, day, root.now);
+            const plan = Gcalcli.quickPlan(t, day, root.now);
             return plan.text === t && plan.day === null;
         };
-        const tabbed = Gcal.parseAgenda(`${root.head}\nev1\t2026-10-31\t08:00\t2026-10-31\t09:00\thttps://www.google.com/calendar/event?eid=ev1\t\t\t\tCoffee\tchat\tHolidays`);
+        const tabbed = Gcalcli.parseAgenda(`${root.head}\nev1\t2026-10-31\t08:00\t2026-10-31\t09:00\thttps://www.google.com/calendar/event?eid=ev1\t\t\t\tCoffee\tchat\tHolidays`);
         midnight.now = new Date(2026, 10, 1, 0, 0);
         return [
             {
@@ -107,12 +109,12 @@ Item {
             },
             {
                 "name": "a notice before the header is skipped",
-                "got": Gcal.parseAgenda(`Moving oauth file from legacy path /a to /b...\n${root.tsv}`)?.length,
+                "got": Gcalcli.parseAgenda(`Moving oauth file from legacy path /a to /b...\n${root.tsv}`)?.length,
                 "want": 15
             },
             {
                 "name": "output without a header is no result, not an empty day",
-                "got": Gcal.parseAgenda("Moving oauth file from legacy path /a to /b...\n"),
+                "got": Gcalcli.parseAgenda("Moving oauth file from legacy path /a to /b...\n"),
                 "want": null
             },
             {
@@ -122,7 +124,7 @@ Item {
             },
             {
                 "name": "agenda asks only for columns after which title is the only free text",
-                "got": Gcal.agendaDetails.join(","),
+                "got": Gcalcli.agendaDetails.join(","),
                 "want": "id,url,conference,calendar"
             },
             {
@@ -132,22 +134,22 @@ Item {
             },
             {
                 "name": "no now line on another day",
-                "got": Gcal.nowIndex(root.days["2026-11-02"], new Date(2026, 10, 2), root.now),
+                "got": Cal.nowIndex(root.days["2026-11-02"], new Date(2026, 10, 2), root.now),
                 "want": -1
             },
             {
                 "name": "an all-day event is not past until its day ends",
-                "got": [Gcal.isPast(root.today[0], root.now, root.now), Gcal.isPast(root.today[1], root.now, root.now)].join(","),
+                "got": [Cal.isPast(root.today[0], root.now, root.now), Cal.isPast(root.today[1], root.now, root.now)].join(","),
                 "want": "false,true"
             },
             {
                 "name": "day items are the grouped events themselves, stable across ticks",
-                "got": Gcal.dayItems(root.days, root.now) === Gcal.dayItems(root.days, new Date(2026, 9, 31, 20, 0)),
+                "got": Cal.dayItems(root.days, root.now) === Cal.dayItems(root.days, new Date(2026, 9, 31, 20, 0)),
                 "want": true
             },
             {
                 "name": "a hidden calendar drops out",
-                "got": (Gcal.byDay(root.rows, " holidays ")["2026-10-31"] ?? []).length,
+                "got": (Cal.byDay(root.rows, " holidays ")["2026-10-31"] ?? []).length,
                 "want": 4
             },
             {
@@ -162,7 +164,7 @@ Item {
             },
             {
                 "name": "midnight keeps the viewed month and the picked week",
-                "got": `${Gcal.toIso(midnight.viewingDate)} row ${Gcal.rowOf(midnight.viewingDate, midnight.selectedDate)}`,
+                "got": `${Cal.toIso(midnight.viewingDate)} row ${Cal.rowOf(midnight.viewingDate, midnight.selectedDate)}`,
                 "want": "2026-10-01 row 1"
             },
             {
@@ -172,7 +174,7 @@ Item {
             },
             {
                 "name": "text without a day gets the picked one",
-                "got": Gcal.quickPlan("Lunch with Anna 1pm", day, root.now).text,
+                "got": Gcalcli.quickPlan("Lunch with Anna 1pm", day, root.now).text,
                 "want": "Lunch with Anna 1pm on November 3 2026"
             },
             {
@@ -187,37 +189,52 @@ Item {
             },
             {
                 "name": "Russian day phrases become an English date, Google quick-add reads only English",
-                "got": ["Встреча завтра в 15:00", "Ужин в субботу", "Ретро в среду", "Звонок в следующую среду", "Отпуск 3 ноября", "Сессия 5 января", "Отчет через 3 дня", "Сдать 10.11.2026"].map(t => Gcal.quickPlan(t, day, root.now).text).join("|"),
+                "got": ["Встреча завтра в 15:00", "Ужин в субботу", "Ретро в среду", "Звонок в следующую среду", "Отпуск 3 ноября", "Сессия 5 января", "Отчет через 3 дня", "Сдать 10.11.2026"].map(t => Gcalcli.quickPlan(t, day, root.now).text).join("|"),
                 "want": ["Встреча on November 1 2026 at 15:00", "Ужин on October 31 2026", "Ретро on November 4 2026", "Звонок on November 4 2026", "Отпуск on November 3 2026", "Сессия on January 5 2027", "Отчет on November 3 2026", "Сдать on November 10 2026"].join("|")
             },
             {
                 "name": "a Russian time keeps the picked day",
-                "got": Gcal.quickPlan("Обед в 13:00", day, root.now).text,
+                "got": Gcalcli.quickPlan("Обед в 13:00", day, root.now).text,
                 "want": "Обед at 13:00 on November 3 2026"
             },
             {
                 "name": "quick-add time reads 24h and am/pm, and ignores dates and ratios",
-                "got": ["Lunch 13:00", "Call 1:30pm", "Dinner 7 pm", "Noon 12am", "Call May 3pm", "1:1 with lead", "Party 10.11", "Sprint 2026-11-20", "Floor 4", "Late 24:00", "Late 25pm"].map(Gcal.quickTime).join("|"),
+                "got": ["Lunch 13:00", "Call 1:30pm", "Dinner 7 pm", "Noon 12am", "Call May 3pm", "1:1 with lead", "Party 10.11", "Sprint 2026-11-20", "Floor 4", "Late 24:00", "Late 25pm"].map(Cal.quickTime).join("|"),
                 "want": "13:00|13:30|19:00|00:00|15:00||||||"
             },
             {
                 "name": "a fetch reaches past the view by the margin, and covers the neighbouring months",
-                "got": [Gcal.fetchWindow("2026-09-28 2026-11-09", 60), Gcal.covers("2026-07-30 2027-01-08", "2026-11-02 2026-12-14"), Gcal.covers("2026-07-30 2027-01-08", "2026-06-29 2026-08-10")].join("|"),
+                "got": [Cal.fetchWindow("2026-09-28 2026-11-09", 60), Cal.covers("2026-07-30 2027-01-08", "2026-11-02 2026-12-14"), Cal.covers("2026-07-30 2027-01-08", "2026-06-29 2026-08-10")].join("|"),
                 "want": "2026-07-30 2027-01-08|true|false"
             },
             {
-                "name": "gcalcli asking to sign in reads as noauth",
-                "got": Gcal.needsAuth("Not yet authenticated.\nStarting auth flow..."),
-                "want": true
+                "name": "gcalcli asking to sign in, or missing, reads as setup with what to run",
+                "got": [Gcalcli.failure("Not yet authenticated.\nStarting auth flow...", 1), Gcalcli.failure("", 127)].map(f => `${f.setup} ${f.text}`).join("|"),
+                "want": "true Run gcalcli init in a terminal|true Install gcalcli"
+            },
+            {
+                "name": "a meet link and a conference read as call labels",
+                "got": root.rows.filter(ev => ev.call !== "").map(ev => ev.call).join(","),
+                "want": "Google Meet,Google Meet,Google Meet"
+            },
+            {
+                "name": "only known providers resolve to a file",
+                "got": ["gcalcli", "foo", "toString", ""].map(Cal.providerFile).join("|"),
+                "want": "Gcalcli.qml|||"
+            },
+            {
+                "name": "the gcalcli provider loads and can add",
+                "got": `${EventsState.providerName} ${EventsState.canAdd}`,
+                "want": "gcalcli true"
             },
             {
                 "name": "a network failure gets a short message",
-                "got": Gcal.shortError("Traceback\nhttplib2.error.ServerNotFoundError: Unable to find the server at oauth2.googleapis.com", 1),
+                "got": Gcalcli.shortError("Traceback\nhttplib2.error.ServerNotFoundError: Unable to find the server at oauth2.googleapis.com", 1),
                 "want": "Can't reach Google Calendar"
             },
             {
                 "name": "an http error names its code",
-                "got": [503, 400].map(c => Gcal.shortError(`googleapiclient.errors.HttpError: <HttpError ${c} when requesting https://www.googleapis.com/calendar/v3/calendars/x/events/quickAdd returned "Backend Error">`, 1)).join("|"),
+                "got": [503, 400].map(c => Gcalcli.shortError(`googleapiclient.errors.HttpError: <HttpError ${c} when requesting https://www.googleapis.com/calendar/v3/calendars/x/events/quickAdd returned "Backend Error">`, 1)).join("|"),
                 "want": "Google Calendar is down (503), try again|Google Calendar refused it (400)"
             }
         ];
