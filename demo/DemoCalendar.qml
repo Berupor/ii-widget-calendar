@@ -8,6 +8,7 @@ Item {
     id: root
     property alias selected: view.selected
     property alias addOpen: view.addOpen
+    property alias addText: view.addText
     property alias status: view.status
     readonly property var now: new Date(2026, 9, 31, 14, 48)
     // Shape of `gcalcli agenda --tsv --details id --details url --details conference --details calendar`
@@ -193,6 +194,11 @@ Item {
                 "name": "a Russian time keeps the picked day",
                 "got": Gcal.quickPlan("Обед в 13:00", day, root.now).text,
                 "want": "Обед at 13:00 November 3 2026"
+            },
+            {
+                "name": "quick-add time reads 24h and am/pm, and ignores dates and ratios",
+                "got": ["Lunch 13:00", "Call 1:30pm", "Dinner 7 pm", "Noon 12am", "Call May 3pm", "1:1 with lead", "Party 10.11", "Sprint 2026-11-20", "Floor 4", "Late 24:00", "Late 25pm"].map(Gcal.quickTime).join("|"),
+                "want": "13:00|13:30|19:00|00:00|15:00||||||"
             },
             {
                 "name": "a fetch reaches past the view by the margin, and covers the neighbouring months",

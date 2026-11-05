@@ -40,10 +40,10 @@ showing a blank day.
   or the week once a day is open.
 - Adding passes the text to `gcalcli quick`. Google reads days only in English:
   "friday 5pm", "May 3", "next week" are left to it, text without a day
-  ("Lunch with Anna 1pm") gets the picked day appended. Russian day phrases
+  ("Lunch with Anna 13:00") gets the picked day appended. Russian day phrases
   ("завтра", "в пятницу", "3 ноября", "через 3 дня", "10.11.2026") are
-  replaced with the English date. The dialog shows which day the event lands
-  on.
+  replaced with the English date. The dialog shows which day and time the
+  event lands on ("all day" when the text has no time).
 
 ## Options
 

@@ -11,6 +11,8 @@ Item {
     property var day: new Date()
     property var now: new Date()
     readonly property var plan: Gcal.quickPlan(eventInput.text, root.day, root.now)
+    readonly property string time: Gcal.quickTime(eventInput.text)
+    readonly property string dayLabel: root.plan.day ? root.plan.day.toLocaleDateString(Qt.locale(), "ddd, d MMM") : ""
     readonly property bool adding: GcalState.adding
     readonly property string addError: GcalState.addError
 
@@ -21,6 +23,7 @@ Item {
         }
     }
     property bool open: false
+    property alias text: eventInput.text
     property bool fabShown: true
     property int dialogMargins: 20
     property int fabMargins: 14
@@ -128,7 +131,7 @@ Item {
                         id: eventInput
                         Layout.fillWidth: true
                         wrapMode: TextEdit.NoWrap
-                        placeholderText: Translation.tr("Lunch with Anna 1pm")
+                        placeholderText: Translation.tr("What and when")
                         focus: root.open
                         onAccepted: dialog.addEvent()
                     }
@@ -138,7 +141,7 @@ Item {
                         Layout.leftMargin: 4
                         spacing: 6
                         MaterialSymbol {
-                            text: root.addError !== "" ? "error" : "event"
+                            text: root.addError !== "" ? "error" : root.time ? "schedule" : "event"
                             iconSize: Appearance.font.pixelSize.normal
                             color: root.addError !== "" ? Appearance.colors.colError : Appearance.colors.colSubtext
                         }
@@ -146,9 +149,10 @@ Item {
                             Layout.fillWidth: true
                             text: root.addError !== "" ? root.addError
                                 : root.adding ? Translation.tr("Adding...")
-                                : eventInput.text.trim() === "" ? Translation.tr("%1, or name a day in the text").arg(root.day.toLocaleDateString(Qt.locale(), "ddd, d MMM"))
-                                : root.plan.day ? Translation.tr("Adds on %1").arg(root.plan.day.toLocaleDateString(Qt.locale(), "ddd, d MMM"))
-                                : Translation.tr("Google reads the day from the text")
+                                : eventInput.text.trim() === "" ? Translation.tr("e.g. Lunch with Anna 13:00, on %1").arg(root.day.toLocaleDateString(Qt.locale(), "ddd, d MMM"))
+                                : root.plan.day ? Translation.tr("%1, %2").arg(root.dayLabel).arg(root.time || Translation.tr("all day"))
+                                : root.time ? Translation.tr("Day from the text, %1").arg(root.time)
+                                : Translation.tr("Day from the text")
                             elide: Text.ElideRight
                             font.pixelSize: Appearance.font.pixelSize.smaller
                             color: root.addError !== "" ? Appearance.colors.colError : Appearance.colors.colSubtext

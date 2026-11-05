@@ -223,6 +223,23 @@ function quickPlan(text, day, now) {
     return { text: `${t} ${englishDate(day)}`, day: day }
 }
 
+/// "HH:MM" of the first time in quick-add text ("13:00", "1:30pm", "5 pm"), "" when it has none
+function quickTime(text) {
+    const clock = /(?:^|[^\d:.])(\d{1,2})(?::([0-5]\d))?(?:\s*([ap])\.?m\b\.?)?(?![\d:])/gi
+    let m
+    while ((m = clock.exec(text ?? "")) !== null) {
+        const [, h, min, meridiem] = m
+        if (!min && !meridiem)
+            continue
+        const hour = +h
+        if (meridiem ? hour < 1 || hour > 12 : hour > 23)
+            continue
+        const h24 = meridiem ? hour % 12 + (meridiem.toLowerCase() === "p" ? 12 : 0) : hour
+        return `${String(h24).padStart(2, "0")}:${min ?? "00"}`
+    }
+    return ""
+}
+
 /// Short message for a failed gcalcli run
 function shortError(output, exitCode) {
     const out = output ?? ""

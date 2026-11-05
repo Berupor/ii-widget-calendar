@@ -17,6 +17,7 @@ Item {
 
     property string selected: ""
     property alias addOpen: addLayer.open
+    property alias addText: addLayer.text
     // First of the month on screen, null follows today
     property var viewMonth: null
     readonly property var selectedDate: Gcal.fromIso(selected)
